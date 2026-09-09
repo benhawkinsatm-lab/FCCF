@@ -1652,12 +1652,7 @@ Return a strict JSON object with:
     try {
       const prompt = `${CASE_CONTEXT_PROMPT}
 TASK: Review the knowledge base documents and identify/update substantive parenting issues and concerns for the Family Court proceedings.
-Specifically ensure items like:
-- "Sue-Anne failed to provide medical care for children" (asthma emergency concealment, withheld hospital discharge summary)
-- "Unilateral removal of children to Busselton during Father's care weekend"
-- "Obstruction of speech pathology and orthodontic treatment"
-- "Chronic contravention of Order 9 (42-hour communication rule)"
-- "Exposure of children to hostile denigration and gatekeeping"
+Derive every issue strictly from what the supplied documents actually evidence. Do not assume, infer beyond the text, or invent an issue that is not directly supported by a specific document. If no substantive issue is evidenced, return an empty issues array rather than fabricating one.
 
 For each issue provide:
 - id, title, category, severity ('Critical' | 'High' | 'Medium' | 'Routine'), description, affectedChildren, dateIdentified, status, s60CCFactorRef, corroboratingEvidence (with docId, title, date, citation, excerpt), recommendedRemedyOrOrder, aiGenerated: true.

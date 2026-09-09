@@ -56,9 +56,9 @@ const ChildSection: React.FC<{
       {lists.map((list, idx) => (
         <div key={idx}>
           <span className="text-[10px] font-semibold text-slate-500 block mb-1">{list.label}</span>
-          {list.items.length > 0 ? (
+          {(list.items?.length ?? 0) > 0 ? (
             <div className="flex flex-wrap gap-1">
-              {list.items.map((item, i) => (
+              {(list.items || []).map((item, i) => (
                 <span
                   key={i}
                   className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[11px] text-slate-700"
@@ -484,7 +484,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                     Key Character &amp; Conduct Traits
                   </span>
                   <ul className="space-y-1.5">
-                    {activeProfile.behaviour.traits.map((trait, idx) => (
+                    {(activeProfile.behaviour?.traits || []).map((trait, idx) => (
                       <li key={idx} className="text-xs text-slate-700 flex items-center gap-1.5">
                         <CheckCircle2 className="w-3 h-3 text-slate-400 shrink-0" />
                         <span>{trait}</span>
@@ -500,7 +500,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                     Observed Risk Factors
                   </span>
                   <ul className="space-y-1.5">
-                    {activeProfile.behaviour.riskFactors.map((risk, idx) => (
+                    {(activeProfile.behaviour?.riskFactors || []).map((risk, idx) => (
                       <li key={idx} className="text-xs text-amber-900 flex items-start gap-1.5">
                         <span className="text-amber-500 font-bold">•</span>
                         <span>{risk}</span>
@@ -526,7 +526,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
               </div>
 
               <div className="flex flex-wrap gap-2 mb-4">
-                {activeProfile.communicationTonePattern.toneCharacteristics.map((tc, idx) => (
+                {(activeProfile.communicationTonePattern?.toneCharacteristics || []).map((tc, idx) => (
                   <span key={idx} className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[11px] text-slate-700 font-medium">
                     {tc}
                   </span>
@@ -534,12 +534,12 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
               </div>
 
               {/* Verbatim Examples */}
-              {activeProfile.communicationTonePattern.verbatimExamples.length > 0 && (
+              {(activeProfile.communicationTonePattern?.verbatimExamples?.length ?? 0) > 0 && (
                 <div className="space-y-3">
                   <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
                     Corroborated Verbatim Quotes from Knowledge Base
                   </span>
-                  {activeProfile.communicationTonePattern.verbatimExamples.map((ex, idx) => (
+                  {(activeProfile.communicationTonePattern?.verbatimExamples || []).map((ex, idx) => (
                     <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5">
                       <div className="flex items-center justify-between text-[11px] text-slate-500">
                         <span className="font-semibold text-indigo-700">{ex.context}</span>
@@ -594,13 +594,13 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                   </div>
                 </div>
 
-                {productivityPattern.dominantNonProductiveMarkers.length > 0 && (
+                {(productivityPattern.dominantNonProductiveMarkers?.length ?? 0) > 0 && (
                   <div className="mb-3">
                     <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">
                       Dominant Non-Productive Markers
                     </span>
                     <div className="flex flex-wrap gap-1.5">
-                      {productivityPattern.dominantNonProductiveMarkers.map((mk, idx) => (
+                      {(productivityPattern.dominantNonProductiveMarkers || []).map((mk, idx) => (
                         <span
                           key={idx}
                           className="px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-[11px] text-rose-800 font-medium"
@@ -616,12 +616,12 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                   {productivityPattern.assessmentNote}
                 </p>
 
-                {productivityPattern.nonProductiveExamples.length > 0 && (
+                {(productivityPattern.nonProductiveExamples?.length ?? 0) > 0 && (
                   <div className="space-y-2 mt-3">
                     <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
                       Non-Productive Verbatim Examples
                     </span>
-                    {productivityPattern.nonProductiveExamples.map((ex, idx) => (
+                    {(productivityPattern.nonProductiveExamples || []).map((ex, idx) => (
                       <div key={idx} className="p-3 bg-rose-50/60 border border-rose-200 rounded-lg text-xs space-y-1.5">
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="font-semibold text-rose-800">{ex.context}</span>
@@ -704,12 +704,12 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                   </div>
 
                   <p className="text-xs text-slate-600 leading-relaxed mb-3">
-                    {childDetail.viewsExpressed.summary}
+                    {childDetail.viewsExpressed?.summary}
                   </p>
 
-                  {childDetail.viewsExpressed.recordedViews.length > 0 ? (
+                  {(childDetail.viewsExpressed?.recordedViews?.length ?? 0) > 0 ? (
                     <div className="space-y-2">
-                      {childDetail.viewsExpressed.recordedViews.map((v, idx) => (
+                      {(childDetail.viewsExpressed?.recordedViews || []).map((v, idx) => (
                         <div key={idx} className="p-3 bg-indigo-50/60 border border-indigo-200 rounded-lg text-xs space-y-1.5">
                           <div className="flex items-center justify-between text-[11px]">
                             <span className="font-semibold text-indigo-800">{v.context}</span>
@@ -735,7 +735,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                   )}
 
                   <p className="text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-100">
-                    {childDetail.viewsExpressed.weightConsiderations}
+                    {childDetail.viewsExpressed?.weightConsiderations}
                   </p>
                 </div>
 
@@ -855,13 +855,13 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 <h3 className="font-bold text-sm text-slate-900">Key Concerns &amp; Safety Factors</h3>
               </div>
 
-              {activeProfile.concerns.substantiatedConcernsAgainstParty.length > 0 && (
+              {(activeProfile.concerns?.substantiatedConcernsAgainstParty?.length ?? 0) > 0 && (
                 <div className="mb-4">
                   <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider block mb-2">
                     Substantiated Concerns Against Party
                   </span>
                   <div className="space-y-2">
-                    {activeProfile.concerns.substantiatedConcernsAgainstParty.map((c, idx) => (
+                    {(activeProfile.concerns?.substantiatedConcernsAgainstParty || []).map((c, idx) => (
                       <div key={idx} className="p-2.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-lg text-xs flex items-start gap-2">
                         <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
                         <span>{c}</span>
@@ -871,13 +871,13 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 </div>
               )}
 
-              {activeProfile.concerns.raisedByParty.length > 0 && (
+              {(activeProfile.concerns?.raisedByParty?.length ?? 0) > 0 && (
                 <div>
                   <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-2">
                     Concerns Expressed / Raised
                   </span>
                   <ul className="space-y-1.5">
-                    {activeProfile.concerns.raisedByParty.map((c, idx) => (
+                    {(activeProfile.concerns?.raisedByParty || []).map((c, idx) => (
                       <li key={idx} className="text-xs text-slate-700 flex items-start gap-2">
                         <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                         <span>{c}</span>
@@ -892,7 +892,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                   Safety &amp; Wellbeing Notes
                 </span>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  {activeProfile.concerns.safetyAndWellbeingNotes}
+                  {activeProfile.concerns?.safetyAndWellbeingNotes}
                 </p>
               </div>
             </div>
@@ -910,13 +910,13 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                   {childDetail.safetyAndRiskNotes || 'No safety or risk findings recorded from the vault.'}
                 </p>
 
-                {childDetail.s60CCFactorLinks.length > 0 && (
+                {(childDetail.s60CCFactorLinks?.length ?? 0) > 0 && (
                   <div className="mt-4 pt-3 border-t border-slate-100">
                     <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
                       Linked Statutory Factors
                     </span>
                     <div className="flex flex-wrap gap-1.5">
-                      {childDetail.s60CCFactorLinks.map((f, idx) => (
+                      {(childDetail.s60CCFactorLinks || []).map((f, idx) => (
                         <span
                           key={idx}
                           className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[11px] text-slate-700 font-mono"
@@ -966,7 +966,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
               </div>
 
               <div className="space-y-2">
-                {activeProfile.evidentiaryReferences.map((ref, idx) => {
+                {(activeProfile.evidentiaryReferences || []).map((ref, idx) => {
                   const docObj = documents.find(d => d.id === ref.docId);
                   return (
                     <div 
