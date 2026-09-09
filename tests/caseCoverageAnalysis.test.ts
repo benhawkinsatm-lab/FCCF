@@ -20,14 +20,14 @@ describe('Case Coverage Analysis & Missing Knowledge Diagnostics', () => {
     annexureNumber: 'Annexure BJH-4',
     fileType: 'pdf',
     fileSize: '1.2 MB',
-    excerpt: 'SMS exchange regarding Busselton withholding.',
+    excerpt: 'SMS exchange regarding care schedule withholding.',
     fullText: 'Full SMS logs.',
   };
 
   const sampleEvent: TimelineEvent = {
     id: 'EVT-001',
     date: '2024-04-12',
-    title: 'Busselton Withholding',
+    title: 'Care Schedule Withholding',
     description: 'Care time denied without notice.',
     category: 'Direct Communication',
     sourceOrigin: 'SMS Record',
@@ -45,7 +45,7 @@ describe('Case Coverage Analysis & Missing Knowledge Diagnostics', () => {
     recipient: 'Benjamin Hawkins',
     timestamp: '2024-04-12 16:30',
     channel: 'SMS',
-    content: "I've taken the kids to Busselton. Deal with it. This is final.",
+    content: "I've taken the kids away. Deal with it. This is final.",
     tone: 'Hostile',
     breachOf42HourMandate: true,
     docRefId: 'DOC-2024-001',

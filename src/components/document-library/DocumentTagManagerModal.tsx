@@ -29,7 +29,6 @@ export const RECOMMENDED_LEGAL_TAGS: { name: string; category: string }[] = [
   { name: 'Subpoena Material', category: 'Evidence' },
   { name: 'Medical Emergency', category: 'Context' },
   { name: 'School Notice', category: 'Context' },
-  { name: 'Busselton Trip', category: 'Context' },
   { name: 'Withholding', category: 'Context' },
   { name: 'Financial Expense', category: 'Context' },
   { name: 'Unilateral Decision', category: 'Context' },

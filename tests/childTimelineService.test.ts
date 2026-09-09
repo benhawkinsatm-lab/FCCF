@@ -53,8 +53,8 @@ describe('Child Timeline Service & Attribution', () => {
     const event: TimelineEvent = {
       id: 'EVT-003',
       date: '2024-04-12',
-      title: 'Weekend Care Withholding to Busselton',
-      description: 'Sue-Anne took Isabella to Busselton without notice, withholding care.',
+      title: 'Weekend Care Withholding',
+      description: 'Sue-Anne took Isabella away without notice, withholding care.',
       category: 'Direct Communication',
       sourceOrigin: 'SMS Record',
       evidentiaryWeight: 'Third-Party Objective',

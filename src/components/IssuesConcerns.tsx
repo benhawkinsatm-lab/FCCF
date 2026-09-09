@@ -300,7 +300,7 @@ ${issue.corroboratingEvidence.map(e => `• [${e.docId}] ${e.title} (${e.citatio
             <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Search issues, keywords (e.g. medical, asthma, Busselton)..."
+              placeholder="Search issues, keywords (e.g. medical, asthma, schooling)..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"

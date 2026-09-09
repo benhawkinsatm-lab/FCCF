@@ -70,7 +70,7 @@ const ROLES_INFO: Record<ChatbotRole, { name: string; description: string; badge
   },
   emergency_injunction: {
     name: 'Emergency Welfare & Injunctions',
-    description: 'Handles urgent withholding (Busselton trip) and medical concealment (Order 5.1).',
+    description: 'Handles urgent withholding and medical concealment (Order 5.1).',
     badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
   },
 };
@@ -143,7 +143,7 @@ export const IntelligentChatbot: React.FC<IntelligentChatbotProps> = ({
       "Did Sue-Anne withhold the children from school changeover on 12 April 2024?"
     ],
     cross_examiner: [
-      "How do we cross-examine Sue-Anne on the 12 April 2024 Busselton withholding?",
+      "How do we cross-examine Sue-Anne on documented care-schedule non-compliance?",
       "Draft 5 leading questions confronting Sue-Anne on Mason's hospital admission concealment",
       "Highlight contradictions between Sue-Anne's affidavit and Bassendean PS attendance records",
       "Show evidence disproving her claim that Ben never attends extracurricular activities"

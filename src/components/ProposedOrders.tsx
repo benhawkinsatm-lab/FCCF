@@ -1220,7 +1220,7 @@ ${order.assessment?.suggestedSafeguardClause ? `\nSUGGESTED COUNSEL SAFEGUARD / 
                   </span>
                 </div>
                 <p className="text-xs text-rose-200/90 mt-0.5">
-                  Orders sought in Response by Mother. Includes requests for sole parental responsibility, restricting Father to alternate weekend days, Busselton relocation, and SMS-only communication.
+                  Orders sought in Response by Mother. Includes requests for sole parental responsibility, restricting Father to alternate weekend days, regional relocation, and SMS-only communication.
                 </p>
               </div>
             </div>

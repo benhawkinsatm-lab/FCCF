@@ -194,11 +194,10 @@ export const getBreachCategories = (breach: TimelineEvent): ParentingOrderCatego
     cats.add('Non-Disparagement');
   }
 
-  // Travel/Passports (Order 13.1 / travel / busselton / margaret river)
+  // Travel/Passports (Order 13.1 / travel / margaret river)
   if (
     ord.includes('13.1') || 
     desc.includes('travel') || 
-    desc.includes('busselton') || 
     desc.includes('margaret river') || 
     desc.includes('regional trip')
   ) {
@@ -238,7 +237,7 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
     { year: 2024, month: 0, label: 'Jan 2024', note: 'Unilateral Camp Enrolment' },
     { year: 2024, month: 1, label: 'Feb 2024', note: 'Gate Denigration & Uniform Lag' },
     { year: 2024, month: 2, label: 'Mar 2024', note: 'Unexcused Absences & Easter' },
-    { year: 2024, month: 3, label: 'Apr 2024', note: 'Busselton Withholding Incident' },
+    { year: 2024, month: 3, label: 'Apr 2024', note: 'Care Schedule Dispute' },
     { year: 2024, month: 4, label: 'May 2024', note: '126h Dental Lag & Football Abuse' },
     { year: 2024, month: 5, label: 'Jun 2024', note: 'BJFC Gate Altercation & False Affidavit' },
     { year: 2024, month: 6, label: 'Jul 2024', note: 'SJOG Hospital Concealment' },
@@ -631,7 +630,7 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
             onClick={() => {
               setActivePatternFilter(activePatternFilter === 'friday-changeovers' ? null : 'friday-changeovers');
               setCurrentYear(2024);
-              setCurrentMonth(3); // Jump to April 2024 (Busselton)
+              setCurrentMonth(3); // Jump to April 2024
               setSelectedDay('2024-04-12');
             }}
             className={`p-3 text-left rounded-lg transition-all ${
@@ -648,7 +647,7 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
             </div>
             <h3 className="text-xs font-bold text-slate-900">Friday 15:30 Pre-Weekend Cut-Off</h3>
             <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
-              Mother signs children out 30-45 mins before the 15:30 school bell, taking them on unannounced trips (Busselton) or declaring sudden uncertified colds.
+              Mother signs children out 30-45 mins before the 15:30 school bell, taking them on unannounced trips or declaring sudden uncertified colds.
             </p>
             <div className="mt-2 text-[10px] text-rose-700 font-semibold flex items-center gap-1">
               <span>Isolate Friday Changeovers</span>

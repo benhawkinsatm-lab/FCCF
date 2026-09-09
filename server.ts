@@ -459,7 +459,7 @@ Primary duties:
 
       emergency_injunction: `YOU ARE BENJAMIN HAWKINS'S EMERGENCY CHILD WELFARE & CONTRAVENTION ENFORCEMENT ADVISOR.
 Primary duties:
-1. Handle urgent order breaches: unilateral withholding / relocation without notice (Order 4 & 7, e.g. Busselton trip) and medical emergency concealment (Order 11 & 12, e.g. St John of God Midland hospital admission).
+1. Handle urgent order breaches: unilateral withholding / relocation without notice (Order 4 & 7) and medical emergency concealment (Order 11 & 12, e.g. St John of God Midland hospital admission).
 2. Draft immediate procedural actions: Form 2 Contravention Applications, compensatory time requests under s 70NEB, and recovery/injunctive orders.`
     };
 
@@ -477,10 +477,9 @@ Primary duties:
       else if (role === 'emergency_injunction') roleLead = 'Child Welfare & Enforcement Counsel';
 
       res.json({
-        reply: `[${roleLead.toUpperCase()} • CASE 4344/2023]\n\nRegarding your inquiry: "${userInquiry}"\n\n1. **Direct Evidentiary Findings**:\n- **[DOC-2023-011]** FCWA Operative Parenting Orders (Order 4 & 5 school changeovers; Order 9 42-hour response mandate; Order 8 SMS only).\n- **[DOC-2024-004]** Telstra SMS Records & Bassendean PS audit from 12 April 2024 proving Respondent unilaterally withheld children to Busselton on Applicant's scheduled weekend without 28 days notice (Order 4 & 7 contraventions).\n- **[DOC-2024-008]** St John of God Midland Emergency Discharge Summary proving Mason admitted 4-5 July 2024 for acute asthma without required notice to Father (Order 11 & 12 contravention).\n- **[DOC-2024-006]** BJFC Incident Log disproving Respondent's claim that Father never attends sports, establishing Father as registered Assistant Coach.\n\n2. **Evidentiary Weight & Admissibility Analysis**:\nUnder the active filter [${evidentiaryFilter}], records from Bassendean Primary School [DOC-2024-002] and St John of God Hospital [DOC-2024-008] represent **Third-Party Objective** records. Under Evidence Act 1906 (WA) s 79C (business records), these are admissible to prove the truth of their contents without viva voce evidence from clinicians, substantially outweighing uncorroborated allegations.\n\n3. **Tactical Recommendation**:\nDeploy these verified records in the Form 2 Contravention Application and Annexures BJH-1 through BJH-9 to establish a documented pattern of parental alienation and contempt.`,
+        reply: `[${roleLead.toUpperCase()} • CASE 4344/2023]\n\nRegarding your inquiry: "${userInquiry}"\n\n1. **Direct Evidentiary Findings**:\n- **[DOC-2023-011]** FCWA Operative Parenting Orders (Order 4 & 5 school changeovers; Order 9 42-hour response mandate; Order 8 SMS only).\n- **[DOC-2024-008]** St John of God Midland Emergency Discharge Summary proving Mason admitted 4-5 July 2024 for acute asthma without required notice to Father (Order 11 & 12 contravention).\n- **[DOC-2024-006]** BJFC Incident Log disproving Respondent's claim that Father never attends sports, establishing Father as registered Assistant Coach.\n\n2. **Evidentiary Weight & Admissibility Analysis**:\nUnder the active filter [${evidentiaryFilter}], records from Bassendean Primary School [DOC-2024-002] and St John of God Hospital [DOC-2024-008] represent **Third-Party Objective** records. Under Evidence Act 1906 (WA) s 79C (business records), these are admissible to prove the truth of their contents without viva voce evidence from clinicians, substantially outweighing uncorroborated allegations.\n\n3. **Tactical Recommendation**:\nDeploy these verified records in the Form 2 Contravention Application and Annexures BJH-1 through BJH-9 to establish a documented pattern of parental alienation and contempt.`,
         citations: [
           { docId: 'DOC-2023-011', id: 'DOC-2023-011', title: 'FCWA Operative Orders' },
-          { docId: 'DOC-2024-004', id: 'DOC-2024-004', title: 'SMS Log & Changeover Denial 12 Apr 2024' },
           { docId: 'DOC-2024-008', id: 'DOC-2024-008', title: 'SJOG Midland Hospital Emergency Summary' },
           { docId: 'DOC-2024-006', id: 'DOC-2024-006', title: 'BJFC Incident Log & Coaching Accreditation' }
         ],
@@ -846,7 +845,7 @@ Return JSON:
           breachSeverity = 'Severe';
           breachSummary = 'Concealment or delay in notifying Father of emergency medical presentation or failure to authorise practitioner liaison.';
         }
-      } else if (lower.includes('busselton') || lower.includes('withhold') || lower.includes('pick up') || lower.includes('handover') || lower.includes('gate') || lower.includes('interim order') || lower.includes('court') || lower.includes('registrar') || lower.includes('affidavit')) {
+      } else if (lower.includes('withhold') || lower.includes('pick up') || lower.includes('handover') || lower.includes('gate') || lower.includes('interim order') || lower.includes('court') || lower.includes('registrar') || lower.includes('affidavit')) {
         if (lower.includes('affidavit') || lower.includes('court') || lower.includes('order')) {
           category = 'Legal/Court';
           sourceOrigin = 'Family Court of Western Australia';
@@ -858,7 +857,7 @@ Return JSON:
           evidentiaryWeight = 'Third-Party Objective';
           weightJustification = 'Telecommunications audit corroborating physical relocation and schedule obstruction.';
         }
-        if (lower.includes('busselton') || lower.includes('withhold')) {
+        if (lower.includes('withhold')) {
           hasBreach = true;
           breachedOrderNumber = 'Order 4 & Order 7 (Parenting Schedule & 28-Day Residence Notice)';
           breachSeverity = 'Severe';
@@ -1102,9 +1101,9 @@ Respond with strict JSON:
     if (lower.includes('email')) fallbackTags.push('Email');
     if (fallbackTags.length === 1) fallbackTags.push('Case 4344 Evidence');
 
-    const hasBreachFallback = lower.includes('withhold') || lower.includes('busselton') || (lower.includes('asthma') && lower.includes('hospital')) || lower.includes('delay') || lower.includes('126');
+    const hasBreachFallback = lower.includes('withhold') || (lower.includes('asthma') && lower.includes('hospital')) || lower.includes('delay') || lower.includes('126');
     const breachedOrder = hasBreachFallback 
-      ? (lower.includes('hospital') ? 'Order 11 & 12' : lower.includes('busselton') ? 'Order 4 & 7' : 'Order 9')
+      ? (lower.includes('hospital') ? 'Order 11 & 12' : lower.includes('withhold') ? 'Order 4 & 7' : 'Order 9')
       : null;
 
     const requiresRespFallback = lower.includes('please confirm') || lower.includes('respond') || lower.includes('inquiry') || lower.includes('consent') || lower.includes('asthma') || lower.includes('quote');
@@ -1870,7 +1869,7 @@ TASK: Perform a rigorous legal AI assessment of the selected PROPOSED PARENTING 
 For each order in ORDERS TO ASSESS:
 1. Identify proposing party: 'Benjamin Hawkins' (Applicant / Father) or 'Sue-Anne Hawkins' (Respondent / Mother).
 2. Evaluate against statutory best interests factors (e.g. s 60CC(2)(a) safety from harm/neglect/concealment, s 60CC(2)(b) meaningful relationship, s 60CC(2)(c) developmental/educational/emotional needs, s 60CC(3)(d) care stability).
-3. Evaluate against documented party history (prior contraventions, medical concealment at SJOG Midland, school absenteeism, Busselton travel withholding, 68.4-hour communication latency).
+3. Evaluate against documented party history (prior contraventions, medical concealment at SJOG Midland, school absenteeism, 68.4-hour communication latency).
 4. Explicitly assign 'riskLevel': 'Low' | 'Medium' | 'High' | 'Critical'.
 5. Include 'evidenceCitations': array of objects { citation, docId, title, exhibitNumber, relevance } explicitly citing verified case exhibits (such as Annexure BJH-1 DOC-2023-011, BJH-2 DOC-2024-002, BJH-4 DOC-2024-004, BJH-8 DOC-2024-008).
 6. Provide drafting improvements and suggested safeguard clause (or cross-examination counter-submission if proposed by Sue-Anne).

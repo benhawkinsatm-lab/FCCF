@@ -81,7 +81,7 @@ export const SingleExpertBriefingModal: React.FC<SingleExpertBriefingModalProps>
 
 ### 3.1 Educational Support & School Attendance (Bassendean Primary School)
 - **Father's Care:** Zero unexcused absences. Zero late arrivals across 2023–2024 school years. Father actively communicates with class teachers and attends all parent-teacher conferences [Exhibit BJH-2].
-- **Mother's Care:** 5 unexcused absences and 7 recorded tardy arrivals in Semester 1, 2024. Maternal claim of illness for 4-day absence in March 2024 contradicted by social media records showing an unannounced weekend trip to Busselton [Exhibit BJH-4].
+- **Mother's Care:** 5 unexcused absences and 7 recorded tardy arrivals in Semester 1, 2024.
 
 ### 3.2 Medical Diligence & Transparency
 - **Father:** Fully transparent, maintains duplicate prescription supplies, implements GP Asthma Action Plan, pays 50% shared specialist dental and physiotherapy accounts immediately upon receipt [Exhibit BJH-3].

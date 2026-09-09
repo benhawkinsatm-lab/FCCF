@@ -374,8 +374,8 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
         : [detectedCategory, 'Case 4344 Evidence'];
 
       const lower = (textPayload + ' ' + nameHint + ' ' + (data.summaryExcerpt || '')).toLowerCase();
-      const hasBreach = Boolean(data.hasBreach || lower.includes('withhold') || lower.includes('busselton') || (lower.includes('asthma') && lower.includes('hospital')));
-      const breachedOrder = data.breachedOrderNumber || (hasBreach ? (lower.includes('hospital') ? 'Order 5.1' : lower.includes('busselton') ? 'Order 4.2 & 13.1' : 'Order 9.1') : null);
+      const hasBreach = Boolean(data.hasBreach || lower.includes('withhold') || (lower.includes('asthma') && lower.includes('hospital')));
+      const breachedOrder = data.breachedOrderNumber || (hasBreach ? (lower.includes('hospital') ? 'Order 5.1' : lower.includes('withhold') ? 'Order 4.2 & 13.1' : 'Order 9.1') : null);
 
       const requiresResponse = Boolean(data.requiresResponse || lower.includes('please confirm') || lower.includes('respond') || lower.includes('inquiry') || lower.includes('consent') || lower.includes('asthma'));
       const detectedFormat: ResponseFormat = data.responseFormat || (lower.includes('sms') ? 'SMS' : lower.includes('clinic') || lower.includes('hospital') ? 'Medical Clinic Notice' : lower.includes('school') ? 'School Notice' : 'Email');
