@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fcwa_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fcwa_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fcwa_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-fcwa_case_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fcwa_user} -d ${POSTGRES_DB:-fcwa_case_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - fcwa_net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fcwa_case_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgres://${POSTGRES_USER:-fcwa_user}:${POSTGRES_PASSWORD:-fcwa_secure_password}@postgres:5432/${POSTGRES_DB:-fcwa_case_db}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - DATA_DIR=/app/data
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - fcwa_net
+
+volumes:
+  postgres_data:
+    name: fcwa_postgres_data
+  app_data:
+    name: fcwa_app_data
+
+networks:
+  fcwa_net:
+    driver: bridge

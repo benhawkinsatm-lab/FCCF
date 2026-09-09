@@ -1,0 +1,6 @@
+{
+  "name": "Family Court & Mediation Intelligence System (Case 4344/2023)",
+  "description": "Secure, local, zero-hallucination intelligence system for Case 4344/2023 with chronological timeline ledger, discrepancy engine, order compliance matrix, BIFF advisor, mediation simulator, and court-ready evidence binder.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
