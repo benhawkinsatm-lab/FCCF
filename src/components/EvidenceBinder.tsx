@@ -4,28 +4,22 @@ import {
   Printer, 
   Download, 
   ExternalLink, 
-  FileCheck, 
   Check, 
   Copy, 
-  Scale,
-  ShieldCheck,
-  Archive,
-  Eye,
-  StickyNote,
-  Highlighter,
-  Tags,
-  SlidersHorizontal,
-  Plus,
-  Layers,
-  Sparkles,
+  Archive, 
+  Eye, 
+  StickyNote, 
+  Highlighter, 
+  Tags, 
+  SlidersHorizontal, 
+  Plus, 
   FileText
 } from 'lucide-react';
 import { DocumentRecord, TimelineEvent, ParentingOrder, DiscrepancyItem, CourtCriterion } from '../types';
 import { CaseDossierExportModal } from './CaseDossierExportModal';
 import { 
   BinderCoversheetConfig, 
-  DocumentAnnotation, 
-  BinderGroupingMode 
+  DocumentAnnotation 
 } from './evidence-binder/types';
 import { 
   getStoredAnnotations, 

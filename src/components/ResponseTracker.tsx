@@ -12,19 +12,14 @@ import {
   MessageSquare, 
   Mail, 
   Phone, 
-  Calendar, 
   ExternalLink, 
   Edit3, 
   RefreshCw, 
-  ShieldAlert, 
-  ChevronRight,
-  Filter,
   X,
   Send,
   Building,
   GraduationCap,
-  Stethoscope,
-  Briefcase
+  Stethoscope
 } from 'lucide-react';
 import { ResponseRequirement, ResponseFormat, DocumentRecord } from '../types';
 

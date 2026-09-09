@@ -5,8 +5,6 @@ import {
   X, 
   Calendar, 
   Scale, 
-  FileText, 
-  Layers, 
   ShieldAlert, 
   StickyNote, 
   Highlighter, 
@@ -14,11 +12,8 @@ import {
   MessageSquare, 
   UserCheck, 
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
   Info
 } from 'lucide-react';
-import { DocumentRecord } from '../../types';
 import { DocumentDependencyDetail } from '../../utils/documentDependencyService';
 
 interface DeleteDocumentWarningModalProps {
@@ -35,7 +30,6 @@ export const DeleteDocumentWarningModal: React.FC<DeleteDocumentWarningModalProp
   isDeleting = false,
 }) => {
   const [activeDocIndex, setActiveDocIndex] = useState(0);
-  const [expandedSection, setExpandedSection] = useState<string | null>('all');
 
   if (!dependencies || dependencies.length === 0) return null;
 

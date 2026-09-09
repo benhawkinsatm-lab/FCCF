@@ -11,20 +11,17 @@ import {
   FileText, 
   Filter, 
   CheckCircle2, 
-  ExternalLink, 
   Copy, 
   Check, 
   ArrowRight, 
-  Calendar,
-  Sparkles,
-  ShieldAlert,
-  Users,
-  Eye,
-  TrendingUp,
-  Download,
-  X,
-  Layers,
-  RotateCcw,
+  Sparkles, 
+  ShieldAlert, 
+  Eye, 
+  TrendingUp, 
+  Download, 
+  X, 
+  Layers, 
+  RotateCcw, 
   Tag
 } from 'lucide-react';
 import { TimelineEvent, ParentingOrder, DocumentRecord, ParentingOrderCategory } from '../types';
@@ -396,7 +393,7 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
   const monthBreachesMap = useMemo(() => {
     const map = new Map<string, TimelineEvent[]>();
     filteredBreaches.forEach(b => {
-      const [y, m, d] = b.date.split('-').map(Number);
+      const [y, m] = b.date.split('-').map(Number);
       if (y === currentYear && m - 1 === currentMonth) {
         const list = map.get(b.date) || [];
         list.push(b);

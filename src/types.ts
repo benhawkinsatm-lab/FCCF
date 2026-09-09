@@ -1,3 +1,95 @@
+// ═══════════════════════════════════════════════════════════════════
+// CHILDREN — canonical identifiers used across profiles and timelines
+// ═══════════════════════════════════════════════════════════════════
+
+export type ChildName = 'Isabella' | 'Mason';
+
+export const CHILD_NAMES: ChildName[] = ['Isabella', 'Mason'];
+
+/**
+ * Per-child timeline categories. Every child carries their OWN timeline
+ * broken down by these categories, independent of the case-wide
+ * DocumentCategory used for evidence filing.
+ */
+export type ChildTimelineCategory =
+  | 'Health & Medical'
+  | 'Education & School'
+  | 'Emotional & Psychological'
+  | 'Care Time & Handover'
+  | 'Extracurricular & Social'
+  | 'Views & Wishes Expressed'
+  | 'Safety & Wellbeing'
+  | 'Developmental & Therapy';
+
+export const CHILD_TIMELINE_CATEGORIES: ChildTimelineCategory[] = [
+  'Health & Medical',
+  'Education & School',
+  'Emotional & Psychological',
+  'Care Time & Handover',
+  'Extracurricular & Social',
+  'Views & Wishes Expressed',
+  'Safety & Wellbeing',
+  'Developmental & Therapy',
+];
+
+// ═══════════════════════════════════════════════════════════════════
+// COMMUNICATION PRODUCTIVITY — "non-productive" capture axis
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Productivity is a SEPARATE axis from tone. A message can be perfectly
+ * civil in tone (Neutral) and still be non-productive in substance — e.g.
+ * a reply inside the Order 9.1 window that answers nothing. Recording the
+ * two independently is what makes the "responded but did not engage"
+ * pattern provable rather than merely assertable.
+ */
+export type CommunicationProductivity =
+  | 'Productive'
+  | 'Partially Productive'
+  | 'Non-Productive'
+  | 'Unassessed';
+
+export type NonProductiveMarker =
+  | 'No Substantive Answer'
+  | 'Deflection / Counter-Accusation'
+  | 'Historical Grievance Raised'
+  | 'Disparagement of Other Parent'
+  | 'Stonewalling / Refusal to Engage'
+  | 'Repetition of Settled Matter'
+  | 'Unilateral Directive (No Consultation)'
+  | 'No Child-Related Content'
+  | 'Emotional Escalation'
+  | 'Volume Without Information'
+  | 'Deferred Without Date';
+
+export const NON_PRODUCTIVE_MARKERS: NonProductiveMarker[] = [
+  'No Substantive Answer',
+  'Deflection / Counter-Accusation',
+  'Historical Grievance Raised',
+  'Disparagement of Other Parent',
+  'Stonewalling / Refusal to Engage',
+  'Repetition of Settled Matter',
+  'Unilateral Directive (No Consultation)',
+  'No Child-Related Content',
+  'Emotional Escalation',
+  'Volume Without Information',
+  'Deferred Without Date',
+];
+
+export interface ProductivityAssessment {
+  productivity: CommunicationProductivity;
+  markers: NonProductiveMarker[];
+  /** True only if the message actually answered what was asked. */
+  substantiveResponse: boolean;
+  /** True if the message contains content about the children at all. */
+  childFocusedContent: boolean;
+  rationale: string;
+  assessedBy: 'AI Review' | 'Deterministic Classifier' | 'Manual';
+  assessedAt: string;
+  /** s 60CC(2)(d) co-parenting capacity linkage, where applicable. */
+  s60CCFactorRef?: string;
+}
+
 export type DocumentCategory = 
   | 'Medical' 
   | 'Education' 
@@ -37,7 +129,7 @@ export interface TimelineEvent {
   sourceOrigin: string;
   evidentiaryWeight: EvidentiaryWeight;
   partiesInvolved: string[];
-  childrenMentioned: ('Isabella' | 'Mason')[];
+  childrenMentioned: ChildName[];
   primaryDocId: string;
   citation: string;
   orderBreachFlag: boolean;
@@ -45,6 +137,36 @@ export interface TimelineEvent {
   breachSeverity?: 'Minor' | 'Moderate' | 'Severe';
   sentimentScore?: 'Hostile' | 'Neutral' | 'Cooperative';
   responseLagHours?: number; // Flag if > 42 hours
+
+  /**
+   * Per-child attribution. One entry per affected child, filed under that
+   * child's OWN timeline category. This is what drives the per-child
+   * timelines on each child's party profile.
+   */
+  childImpacts?: ChildImpactRecord[];
+
+  /** Productivity classification where this event arises from a communication. */
+  communicationProductivity?: CommunicationProductivity;
+  nonProductiveMarkers?: NonProductiveMarker[];
+
+  /** Provenance: how this event came to exist (used by the coverage engine). */
+  generatedBy?: 'AI Ingestion' | 'AI Review' | 'Manual Entry' | 'Drive Import';
+  generationRationale?: string;
+}
+
+/**
+ * A single child's stake in a timeline event, categorised into that
+ * child's own timeline taxonomy.
+ */
+export interface ChildImpactRecord {
+  child: ChildName;
+  childCategory: ChildTimelineCategory;
+  impactSummary: string;
+  severity: 'Critical' | 'High' | 'Moderate' | 'Low' | 'Informational';
+  s60CCFactorRef?: string;
+  /** False when the child is inferred rather than named in the source. */
+  directlyEvidenced: boolean;
+  sourceExcerpt?: string;
 }
 
 export type ParentingOrderCategory = 
@@ -91,6 +213,11 @@ export interface KnowledgeGap {
   recommendedQuestion: string;
   suggestedAction: string;
   resolved: boolean;
+
+  /** Provenance so the assistant can explain where a gap came from. */
+  detectedBy?: 'AI Review' | 'Coverage Engine' | 'Manual';
+  originDocIds?: string[];
+  relatedChild?: ChildName | 'Both' | 'N/A';
 }
 
 export interface CommunicationMessage {
@@ -105,6 +232,18 @@ export interface CommunicationMessage {
   lagHours?: number;
   breachOf42HourMandate: boolean;
   docRefId: string;
+
+  /**
+   * Substance assessment, independent of tone and of the 42-hour clock.
+   * A message can be on time and civil yet still Non-Productive.
+   */
+  productivityAssessment?: ProductivityAssessment;
+
+  /** Children this message actually concerns, for per-child attribution. */
+  childrenReferenced?: ChildName[];
+
+  /** What was asked of this party, where the message is a reply. */
+  requestAddressed?: string;
 }
 
 export interface BiffAdviceResult {
@@ -185,6 +324,20 @@ export interface ResponseRequirement {
   priority?: 'Critical' | 'High' | 'Routine';
   aiReviewRationale?: string;
   actionsTaken?: string[];
+
+  /**
+   * A response can be "completed" against the 42-hour clock and still be
+   * worthless. These fields separate timeliness from substance so a reply
+   * such as "deal with it" is recorded as answered-but-non-productive
+   * rather than silently closing the requirement.
+   */
+  responseProductivity?: CommunicationProductivity;
+  substantiveResponse?: boolean;
+  nonProductiveMarkers?: NonProductiveMarker[];
+  productivityRationale?: string;
+
+  /** Children the request concerns, for per-child attribution. */
+  childrenConcerned?: ChildName[];
 }
 
 export interface VerbatimExample {
@@ -219,6 +372,24 @@ export interface PartyProfile {
     toneCharacteristics: string[];
     verbatimExamples: VerbatimExample[];
   };
+
+  /**
+   * Substance-of-communication metrics, recorded separately from tone.
+   * Populated by AI review and by the deterministic classifier.
+   */
+  communicationProductivityPattern?: {
+    productiveCount: number;
+    partiallyProductiveCount: number;
+    nonProductiveCount: number;
+    /** e.g. "62.5%" */
+    nonProductiveRate: string;
+    /** e.g. "31.0%" — replies that actually answered the question asked. */
+    substantiveResponseRate: string;
+    dominantNonProductiveMarkers: NonProductiveMarker[];
+    nonProductiveExamples: VerbatimExample[];
+    assessmentNote: string;
+  };
+
   parentingCapacity: {
     schoolEngagement: string;
     medicalManagement: string;
@@ -226,6 +397,63 @@ export interface PartyProfile {
   };
   evidentiaryReferences: { docId: string; title: string; citation: string; note: string }[];
   lastAiReviewTimestamp?: string;
+
+  /**
+   * Present only on child profiles (PROF-003 Isabella, PROF-004 Mason).
+   * Parent-oriented blocks above stay empty/N-A for children.
+   */
+  childDetail?: ChildProfileDetail;
+}
+
+/**
+ * Child-specific profile content. Children are parties to these proceedings
+ * in their own right under s 60CC, so they carry their own substantive
+ * record rather than being a footnote on a parent's profile.
+ */
+export interface ChildProfileDetail {
+  childName: ChildName;
+  school?: string;
+  yearLevel?: string;
+
+  developmentalNeeds: string[];
+
+  healthAndMedical: {
+    summary: string;
+    conditions: string[];
+    treatingProviders: string[];
+    complianceNotes: string;
+  };
+
+  educationAndSchooling: {
+    summary: string;
+    attendanceNotes: string;
+    supportNeeds: string[];
+  };
+
+  emotionalAndPsychological: {
+    summary: string;
+    observedIndicators: string[];
+    exposureToConflictNotes: string;
+  };
+
+  /** s 60CC(2)(b) — views expressed by the child. */
+  viewsExpressed: {
+    summary: string;
+    recordedViews: VerbatimExample[];
+    weightConsiderations: string;
+  };
+
+  extracurricularAndSocial: {
+    summary: string;
+    activities: string[];
+  };
+
+  safetyAndRiskNotes: string;
+
+  /** Live counts per this child's own timeline categories. */
+  timelineCategoryCounts?: Partial<Record<ChildTimelineCategory, number>>;
+
+  s60CCFactorLinks: string[];
 }
 
 export interface IssueConcern {
@@ -361,9 +589,70 @@ export interface CaseSettings {
   medicalNoticeHours: number; // default 24
   travelNoticeDays: number; // default 28
   strictZeroHallucination: boolean;
-  aiModel: 'gemini-2.5-flash' | 'gemini-2.5-pro';
+  aiModel: 'gemini-3.8-flash' | 'gemini-3.5-flash' | 'gemini-3.1-flash-lite' | 'gemini-3.1-pro-preview' | 'gemini-2.5-flash' | 'gemini-2.5-pro';
   enforceDocumentCitation: boolean;
   driveImportFolder: string;
   autoIngestPolling: boolean;
 }
 
+
+// ═══════════════════════════════════════════════════════════════════
+// COVERAGE ANALYSIS — powers the floating assistant's ability to explain
+// why a record was NOT generated, and what knowledge is missing.
+// ═══════════════════════════════════════════════════════════════════
+
+export type CoverageIssueType =
+  | 'document_no_timeline_event'
+  | 'document_no_child_attribution'
+  | 'document_no_response_link'
+  | 'document_unread_fulltext'
+  | 'communication_unassessed_productivity'
+  | 'child_timeline_category_empty'
+  | 'child_profile_never_reviewed'
+  | 'criterion_no_evidence'
+  | 'order_no_compliance_evidence'
+  | 'timeline_event_uncited'
+  | 'response_completed_but_non_productive';
+
+export interface CoverageFinding {
+  id: string;
+  type: CoverageIssueType;
+  severity: 'Critical' | 'High' | 'Moderate' | 'Informational';
+  /** Human label for the thing that is missing coverage. */
+  subject: string;
+  subjectId?: string;
+  /** What is missing, stated plainly. */
+  explanation: string;
+  /** Why the pipeline did not produce it — the diagnostic. */
+  likelyCause: string;
+  /** What to do about it. */
+  remediation: string;
+  affectedChild?: ChildName | 'Both';
+}
+
+export interface CoverageReport {
+  generatedAt: string;
+  totals: {
+    documents: number;
+    documentsWithTimelineEvents: number;
+    documentsWithoutTimelineEvents: number;
+    timelineEvents: number;
+    timelineEventsWithChildAttribution: number;
+    communications: number;
+    communicationsAssessedForProductivity: number;
+    nonProductiveCommunications: number;
+    childProfilesPresent: number;
+    emptyChildTimelineCategories: number;
+    criteriaWithoutEvidence: number;
+  };
+  perChild: {
+    child: ChildName;
+    profilePresent: boolean;
+    eventCount: number;
+    categoryCounts: Partial<Record<ChildTimelineCategory, number>>;
+    emptyCategories: ChildTimelineCategory[];
+    lastReviewed?: string;
+  }[];
+  findings: CoverageFinding[];
+  missingKnowledgeInsights: string[];
+}

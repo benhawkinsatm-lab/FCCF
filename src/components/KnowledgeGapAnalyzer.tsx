@@ -1,13 +1,8 @@
 import React, { useState } from 'react';
 import { 
   HelpCircle, 
-  AlertCircle, 
   CheckCircle2, 
-  Plus, 
-  ExternalLink, 
-  FileSearch, 
-  ShieldAlert, 
-  ArrowRight
+  Plus
 } from 'lucide-react';
 import { KnowledgeGap, DocumentCategory } from '../types';
 

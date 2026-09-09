@@ -3,7 +3,6 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import {
-  initStorageDirs,
   getStorageState,
   saveStorageState,
   getStorageStatus,
@@ -12,6 +11,7 @@ import {
   restoreBackup,
   importStoreJson,
   getExportContent,
+  closePgPool,
 } from './src/server/storageManager';
 
 let aiClient: GoogleGenAI | null = null;
@@ -36,17 +36,54 @@ CRITICAL MANDATES:
 1. Baseline Entities:
    - Applicant / Client: Benjamin James (Ben) Hawkins (Father)
    - Respondent / Other Party: Sue-Anne Hawkins (Mother)
-   - Children: Isabella Hawkins (born 12 July 2014) and Mason Hawkins (born 18 February 2015)
-   - Current Regime: Interim Orders made 14 November 2023 in the Family Court of WA (Perth) by Judicial Registrar Vance.
-   - Statutory Framework: Family Law Act 1975 (Cth) / Family Court Act 1997 (WA), specifically s 60CC (Best interests), s 61DAA / s 65DAA (Parental responsibility & care arrangements), Part VII Division 13A (Contraventions and enforcement).
+   - Children: Isabella Hawkins (born 21 July 2014) and Mason Hawkins (born 15 February 2015)
+   - Current Regime: Operative Orders made in the Family Court of Western Australia (FCWA Case 4344/2023).
+   - Statutory Framework: Family Law Act 1975 (Cth) / Family Court Act 1997 (WA), specifically s 60CC (Best interests of children), s 61DAA (Consultation on major long-term issues), s 65DAA (Care arrangements), s 68Q (Inconsistent family violence orders), Part VII Division 13A (Sanctions for failure to comply with orders / Contravention).
    - Key Existing Orders:
-     * Order 4.1: Equal shared parental responsibility.
-     * Order 4.2: Care schedule with alternate weekend changeover on Friday 15:30 at Bassendean Primary School gate.
-     * Order 5.1: 24-hour medical notification mandate for non-routine treatment/emergency.
-     * Order 7.3: Equal access and joint consultation regarding education.
-     * Order 9.1: 42-Hour Written Communication Mandate for parenting queries.
-     * Order 11.2: Strict non-disparagement in presence or hearing of children.
-     * Order 13.1: Minimum 28 days written notice for travel outside Perth metro.
+     * Decision Making:
+       - Order 3: Pursuant to section 61DAA of the Family Law Act 1975 (Cth), the Applicant, BENJAMIN JAMES HAWKINS, and the Respondent are to consult with each other to make joint decisions regarding all major long-term issues in relation to the children, ISABELLA HAWKINS born 21 July 2014 and MASON HAWKINS born 15 February 2015, being decisions concerning issues about the care, welfare and development of the children of a long-term nature and including (but not limited to) issues of that nature about: (a) education (current and future); (b) religious and cultural upbringing; (c) health; (d) Name; and (e) changes to the children's living arrangements that make it significantly more difficult for a child to spend time with a parent.
+     * Live with / Spend time:
+       - Order 4: The children live with the Respondent and spend time with the Applicant during term times as follows: (a) each alternate weekend from the conclusion of school on Friday (or 3.00pm on a non-school day) until the commencement of school on Monday (or 9.00am on a non-school day); and (b) each Wednesday from the conclusion of school (or 3.00pm on a non-school day) until 6.00pm.
+       - Order 5: For the purpose of handover: (a) handover that coincides with the commencement or conclusion of school occur at the children's school; (b) for the purpose of the Applicant's time with the children each Wednesday, the Applicant collect the children from school at the commencement of his time and deliver the children to the Respondent's residence at the conclusion of his time; and otherwise handover will occur as follows: (c) the Applicant to pick up and drop off the children at the Respondent's residence at the commencement/conclusion of his time.
+     * Special Occasions & Holidays:
+       - Order 6: For the purpose of special occasions, the spend time arrangements pursuant to paragraph 4 of these orders be suspended and the children spend time with the parties as follows:
+         (a) During each school holiday period, subject to the Applicant confirming he is available to care for the children not later than 21 days prior to the proposed school holidays, for one half of each school holiday period as agreed between the parties in writing, and failing agreement, with the Applicant: (i) during Terms 1, 2 and 3 for the first half, from the conclusion of school on Friday until 5.00pm on the middle Saturday; and (ii) in the Term 4 long school holiday period, on a week about basis, from the conclusion of school on Friday until 3.00pm the following Friday;
+         (b) During the Christmas period: (i) with the Respondent from 9.00am on Christmas Eve until 9.00am on Boxing Day; and (ii) with the Applicant from 9.00am on Boxing Day until 5.00pm on the following day;
+         (c) With the Applicant on Father's Day weekend from 3.00pm the day before Father's Day until 3.00pm on Father's Day; and
+         (d) With the Respondent on Mother's Day weekend from 3.00pm the day before Mother's Day until 3.00pm on Mother's Day.
+     * Communication:
+       - Order 7: The parties do keep each other informed in relation to their current residential address and mobile telephone number and provide no less than 28 days written notice of their intention to change their primary place of residence.
+       - Order 8: The parties communicate with one another via SMS text message only in relation to the children, in a courteous and child focused manner.
+       - Order 9 (42-Hour Written Communication Mandate): The parties use their best endeavours to respond in a timely fashion and within 42 hours of receiving a message from the other party.
+       - Order 10: The parties have liberal telephone communication with the children in accordance with the children's wishes, and both parties do all things necessary to facilitate any such communication, which includes ensuring the other parent is not blocked on any of the children's devices.
+     * Medical Information:
+       - Order 11: Each party shall provide the other party with notice of any significant medical issues concerning the children including details of any treating practitioner and if requested to do so by the other party, shall authorise any treating practitioner to discuss the children's medical issues with that party.
+       - Order 12: The parties be permitted and provide authorisation to liaise with and communicate with the children's medical and health practitioners (including Bassendean Total Health Care), and to authorise them to provide duplicate copies of all medical records and information, upon the other party's request.
+       - Order 13: The parties be permitted to provide a copy of these Orders to any medical or health practitioner the children attend upon.
+     * School:
+       - Order 14: Each party be permitted to attend any school events or extra-curricular activities that parents would ordinarily be expected and invited to attend including but not limited to school assemblies, parent/teacher evenings and school carnivals.
+       - Order 15: In the event the Applicant intends on attending any school or extra-curricular activity he provide the Respondent with 24 hours' notice of his intention to attend.
+       - Order 16: Unless otherwise agreed between the parties in writing, the children remain enrolled in and continue to attend Bassendean Primary School for the duration of the children's primary school education.
+       - Order 17: The parties consult with each other and agree in writing as to the school that the children attend for their secondary education. In the event that the parties are unable to agree to the children's secondary school, the parties first attend upon an agreed, appropriately qualified Family Dispute Resolution Practitioner, to resolve those issues without the recourse for further litigation.
+       - Order 18: The parties be permitted to provide a copy of these Orders to any school at which the children attend.
+     * Passports:
+       - Order 19: The Applicant and the Respondent do all things necessary to facilitate the issue of a passport for the said children.
+       - Order 20: The costs associated with the issue of a passport for the children referred to in the preceding orders herein be met by the parent requesting the passport.
+       - Order 21: The Respondent retain the children's passports in her possession and provide a colour photo copy of the inside page to the Applicant.
+     * Travel:
+       - Order 22: The Applicant and the Respondent have liberty to travel with the said children, outside the Commonwealth of Australia for the purpose of holidays provided that:
+         (a) The travelling parent provide the non-travelling parent with not less than one month's written notice of his or her intention to travel;
+         (b) Not later than 14 days prior to departure, the travelling parent provide the non-travelling parent with a copy of: (i) the proposed travel itinerary; (ii) contact details for the said children being the address where they will be primarily staying for the duration of the said holiday together with a telephone contact number; (iii) and the travelling parent keep the non-travelling informed of any changes to these arrangements; and (iv) there is not a current "Do not Travel" warning issued by the Department of Foreign Affairs and Trade at the time of departure in relation to the proposed destination.
+         In the event the Applicant is travelling with the children, the Respondent provide him with the children's passports no later than 14 days prior to the departure date and upon his return, the Applicant return the children's passports to the Respondent within 7 days.
+     * Injunctions & Restraints:
+       - Order 24: On a without admission as to needs basis, the parties be restrained and an injunction is hereby granted restraining them consuming any illicit substances or alcohol to excess during any time the children are in their respective care.
+       - Order 25: The parties be restrained and an injunction is hereby granted restraining them from:
+         (a) Denigrating the other party (or the other party's family) to or in the presence or hearing of the children; and
+         (b) Discussing the Court proceedings with or in the presence or hearing of the children or disclosing to the children any of the Court documentation or allowing any third party to do so.
+       - Order 26: The parties be restrained and an injunction is hereby granted restraining them from allowing the children to be unsupervised until they reach 14 years of age.
+     * Inconsistency Order (s 68Q Family Law Act 1975):
+       - Order 27: This is an order to which section 68Q of the Family Law Act 1975 (Cth) applies and to the extent that this order is inconsistent with the Conduct Agreement Order made in the case between the parties on 9 August 2024 in the Magistrates Court at Perth being Complaint number MC/CIV/PER/RO/205/2024, the aforesaid parenting order shall prevail and the Conduct Agreement Order is invalid to the extent of the inconsistency.
+       - Order 28: The Deputy Registrar, Magistrates Court, 150 Terrace Road Perth cause a sealed copy of this order to be forwarded to the Commissioner of Police, the Deputy Registrar.
 
 2. STRICT LEGAL ADMISSIBILITY & ZERO-HALLUCINATION RULES:
    - Every factual claim, finding, or argument MUST cite the exact primary document ID or evidence row (e.g. [DOC-2024-004], [DOC-2023-011], [DOC-2024-006]).
@@ -132,7 +169,7 @@ const FALLBACK_MEDIATION = (userProposal = '', topic = 'Care Schedule & Living A
   statutoryGrounding: 'Family Law Act 1975 (Cth) s 60CC(2)(a) (safety and protection) & s 60CC(2)(e) (benefit of meaningful relationship with both parents).'
 });
 
-const FALLBACK_AFFIDAVIT = (categoryFilter = 'All') => ({
+const FALLBACK_AFFIDAVIT = (_categoryFilter = 'All') => ({
   caseTitle: 'IN THE FAMILY COURT OF WESTERN AUSTRALIA (CASE 4344/2023)',
   deponent: 'BENJAMIN JAMES HAWKINS',
   respondent: 'SUE-ANNE HAWKINS',
@@ -141,48 +178,98 @@ const FALLBACK_AFFIDAVIT = (categoryFilter = 'All') => ({
       num: 1,
       heading: 'Background & Formal Capacity',
       text: 'I am the Applicant Father in these proceedings and make this affidavit from my own knowledge, information and belief in support of my application in respect of our children.',
-      citationDocId: 'VAULT-ORDERS',
-      citationText: 'Interim Parenting Orders',
-      annexureRef: 'Annexure A'
+      citationDocId: 'DOC-2023-011',
+      citationText: 'FCWA Operative Parenting Orders',
+      annexureRef: 'Annexure BJH-1'
     },
     {
       num: 2,
       heading: 'Care Schedule & Parental Compliance',
       text: 'Pursuant to the operative orders of this Honourable Court, care arrangements have been maintained as documented in the contemporaneous timeline records and school attendance registers.',
-      citationDocId: 'VAULT-ATTENDANCE',
-      citationText: 'Institutional Attendance & Care Records',
-      annexureRef: 'Annexure B'
+      citationDocId: 'DOC-2024-002',
+      citationText: 'Bassendean Primary School Attendance Record & Audit',
+      annexureRef: 'Annexure BJH-2'
     },
     {
       num: 3,
       heading: 'Contemporaneous Communication & Notice',
       text: 'All requests for information, medical updates, and care coordination have been dispatched in writing pursuant to the mandated communication notice windows, with verified delivery timestamps.',
-      citationDocId: 'VAULT-COMMS',
-      citationText: 'Written Communication Audit & Timestamps',
-      annexureRef: 'Annexure C'
+      citationDocId: 'DOC-2024-004',
+      citationText: 'Telstra Mobile SMS Communication Record & Changeover Log',
+      annexureRef: 'Annexure BJH-4'
     }
   ],
   annexuresSummary: [
     {
-      annexureLetter: 'A',
-      docId: 'VAULT-ORDERS',
-      description: 'Copy of Sealed Court Orders',
-      date: new Date().toISOString().split('T')[0]
+      annexureLetter: 'BJH-1',
+      docId: 'DOC-2023-011',
+      description: 'Copy of Sealed Family Court Operative Orders',
+      date: '2023-11-14'
     },
     {
-      annexureLetter: 'B',
-      docId: 'VAULT-ATTENDANCE',
-      description: 'Verified Institutional Attendance Records',
-      date: new Date().toISOString().split('T')[0]
+      annexureLetter: 'BJH-2',
+      docId: 'DOC-2024-002',
+      description: 'Verified Bassendean Primary School Attendance Ledger',
+      date: '2024-03-28'
     },
     {
-      annexureLetter: 'C',
-      docId: 'VAULT-COMMS',
-      description: 'Written Communication Log & Notice Verification',
-      date: new Date().toISOString().split('T')[0]
+      annexureLetter: 'BJH-4',
+      docId: 'DOC-2024-004',
+      description: 'Contemporaneous Telstra SMS Transcript & Changeover Log',
+      date: '2024-04-12'
     }
   ]
 });
+
+// ── Per-child detection & attribution helpers ────────────────────────
+type ChildNameSrv = 'Isabella' | 'Mason';
+
+const CHILD_MATCHERS: { child: ChildNameSrv; pattern: RegExp }[] = [
+  { child: 'Isabella', pattern: /\b(isabella|izzy|bella)\b/i },
+  { child: 'Mason', pattern: /\b(mason|mase)\b/i },
+];
+
+const GENERIC_CHILD_MATCHER =
+  /\b(the (kids|children)|our (kids|children|daughter|son)|both (kids|children))\b/i;
+
+/**
+ * Only attribute a document to a child who is actually named. Blanket
+ * attribution to both children was previously hardcoded at ingestion, which
+ * made every child timeline identical and therefore evidentially useless.
+ */
+function detectChildrenInText(text: string): ChildNameSrv[] {
+  const named = CHILD_MATCHERS.filter(c => c.pattern.test(text)).map(c => c.child);
+  if (named.length > 0) return named;
+  if (GENERIC_CHILD_MATCHER.test(text)) return ['Isabella', 'Mason'];
+  return [];
+}
+
+const CHILD_CATEGORY_BY_DOC_CATEGORY: Record<string, string> = {
+  Medical: 'Health & Medical',
+  Education: 'Education & School',
+  Extracurricular: 'Extracurricular & Social',
+  'Legal/Court': 'Care Time & Handover',
+  'Direct Communication': 'Care Time & Handover',
+  Financial: 'Care Time & Handover',
+};
+
+function buildFallbackChildImpacts(text: string, docCategory: string, severity: string) {
+  const children = detectChildrenInText(text);
+  const childCategory = CHILD_CATEGORY_BY_DOC_CATEGORY[docCategory] || 'Care Time & Handover';
+  const severityMap: Record<string, string> = {
+    Severe: 'Critical',
+    Moderate: 'High',
+    Informational: 'Informational',
+  };
+
+  return children.map(child => ({
+    child,
+    childCategory,
+    impactSummary: `Record concerning ${child} filed under ${childCategory}.`,
+    severity: severityMap[severity] || 'Informational',
+    directlyEvidenced: CHILD_MATCHERS.some(c => c.child === child && c.pattern.test(text)),
+  }));
+}
 
 async function startServer() {
   const app = express();
@@ -360,7 +447,7 @@ Primary duties:
 
       biff_coach: `YOU ARE BENJAMIN HAWKINS'S DEDICATED BIFF (BRIEF, INFORMATIVE, FRIENDLY, FIRM) CO-PARENTING COMMUNICATION COACH.
 Primary duties:
-1. Guide Ben's communications to Sue-Anne Hawkins under Order 9.1 (42-Hour Written Communication Mandate).
+1. Guide Ben's communications to Sue-Anne Hawkins under Order 9 (42-Hour Written Communication Mandate) and Order 8 (SMS text only, courteous and child-focused).
 2. Strip out all emotional reactiveness, sarcasm, historical grievances, and defensive arguing.
 3. Keep communications under 100 words, clearly stating dates, times, and logistics with polite professionalism while holding unwavering boundaries.`,
 
@@ -372,7 +459,7 @@ Primary duties:
 
       emergency_injunction: `YOU ARE BENJAMIN HAWKINS'S EMERGENCY CHILD WELFARE & CONTRAVENTION ENFORCEMENT ADVISOR.
 Primary duties:
-1. Handle urgent order breaches: unilateral withholding (Order 4.2 & 13.1, e.g. Busselton trip) and medical emergency concealment (Order 5.1, e.g. St John of God Midland hospital admission).
+1. Handle urgent order breaches: unilateral withholding / relocation without notice (Order 4 & 7, e.g. Busselton trip) and medical emergency concealment (Order 11 & 12, e.g. St John of God Midland hospital admission).
 2. Draft immediate procedural actions: Form 2 Contravention Applications, compensatory time requests under s 70NEB, and recovery/injunctive orders.`
     };
 
@@ -390,9 +477,9 @@ Primary duties:
       else if (role === 'emergency_injunction') roleLead = 'Child Welfare & Enforcement Counsel';
 
       res.json({
-        reply: `[${roleLead.toUpperCase()} • CASE 4344/2023]\n\nRegarding your inquiry: "${userInquiry}"\n\n1. **Direct Evidentiary Findings**:\n- **[DOC-2023-011]** FCWA Interim Parenting Orders made 14 Nov 2023 (Order 4.2 school gate changeovers Friday 15:30; Order 9.1 42-hour email response mandate).\n- **[DOC-2024-004]** Telstra SMS Records & Bassendean PS audit from 12 April 2024 proving Respondent unilaterally withheld children to Busselton on Applicant's scheduled weekend without 28 days notice (Order 4.2 & 13.1 contraventions).\n- **[DOC-2024-008]** St John of God Midland Emergency Discharge Summary proving Mason admitted 4-5 July 2024 for acute asthma without required 24-hour notice to Father (Order 5.1 contravention).\n- **[DOC-2024-006]** BJFC Incident Log disproving Respondent's claim that Father never attends sports, establishing Father as registered Assistant Coach.\n\n2. **Evidentiary Weight & Admissibility Analysis**:\nUnder the active filter [${evidentiaryFilter}], records from Bassendean Primary School [DOC-2024-002] and St John of God Hospital [DOC-2024-008] represent **Third-Party Objective** records. Under Evidence Act 1906 (WA) s 79C (business records), these are admissible to prove the truth of their contents without viva voce evidence from clinicians, substantially outweighing uncorroborated allegations.\n\n3. **Tactical Recommendation**:\nDeploy these verified records in the Form 2 Contravention Application and Annexures BJH-1 through BJH-9 to establish a documented pattern of parental alienation and contempt.`,
+        reply: `[${roleLead.toUpperCase()} • CASE 4344/2023]\n\nRegarding your inquiry: "${userInquiry}"\n\n1. **Direct Evidentiary Findings**:\n- **[DOC-2023-011]** FCWA Operative Parenting Orders (Order 4 & 5 school changeovers; Order 9 42-hour response mandate; Order 8 SMS only).\n- **[DOC-2024-004]** Telstra SMS Records & Bassendean PS audit from 12 April 2024 proving Respondent unilaterally withheld children to Busselton on Applicant's scheduled weekend without 28 days notice (Order 4 & 7 contraventions).\n- **[DOC-2024-008]** St John of God Midland Emergency Discharge Summary proving Mason admitted 4-5 July 2024 for acute asthma without required notice to Father (Order 11 & 12 contravention).\n- **[DOC-2024-006]** BJFC Incident Log disproving Respondent's claim that Father never attends sports, establishing Father as registered Assistant Coach.\n\n2. **Evidentiary Weight & Admissibility Analysis**:\nUnder the active filter [${evidentiaryFilter}], records from Bassendean Primary School [DOC-2024-002] and St John of God Hospital [DOC-2024-008] represent **Third-Party Objective** records. Under Evidence Act 1906 (WA) s 79C (business records), these are admissible to prove the truth of their contents without viva voce evidence from clinicians, substantially outweighing uncorroborated allegations.\n\n3. **Tactical Recommendation**:\nDeploy these verified records in the Form 2 Contravention Application and Annexures BJH-1 through BJH-9 to establish a documented pattern of parental alienation and contempt.`,
         citations: [
-          { docId: 'DOC-2023-011', id: 'DOC-2023-011', title: 'FCWA Interim Orders 14 Nov 2023' },
+          { docId: 'DOC-2023-011', id: 'DOC-2023-011', title: 'FCWA Operative Orders' },
           { docId: 'DOC-2024-004', id: 'DOC-2024-004', title: 'SMS Log & Changeover Denial 12 Apr 2024' },
           { docId: 'DOC-2024-008', id: 'DOC-2024-008', title: 'SJOG Midland Hospital Emergency Summary' },
           { docId: 'DOC-2024-006', id: 'DOC-2024-006', title: 'BJFC Incident Log & Coaching Accreditation' }
@@ -639,9 +726,9 @@ Respond with JSON:
     }
   });
 
-  // Affidavit Drafter
-  app.post('/api/gemini/affidavit-draft', async (req, res) => {
-    const { categoryFilter = 'All' } = req.body;
+  // Affidavit Drafter - Support both /api/gemini/affidavit-draft and /api/gemini/affidavit-drafter
+  const handleAffidavitDraft = async (req: express.Request, res: express.Response) => {
+    const { categoryFilter = 'All', topic, selectedEventIds = [], specificRequests = '' } = req.body;
     const ai = getAiClient();
 
     if (!ai) {
@@ -649,12 +736,18 @@ Respond with JSON:
     }
 
     try {
+      const subjectFocus = topic || categoryFilter;
+      const eventsContext = Array.isArray(selectedEventIds) && selectedEventIds.length > 0
+        ? `\nSpecific Evidentiary Event IDs to Plead: ${selectedEventIds.join(', ')}`
+        : '';
+      const customInstructions = specificRequests ? `\nDrafting Instructions: ${specificRequests}` : '';
+
       const prompt = `
 ${CASE_CONTEXT_PROMPT}
 
 TASK: FAMILY COURT OF WA FORMAL AFFIDAVIT DRAFTER
 Deponent: BENJAMIN JAMES HAWKINS
-Focus Category: ${categoryFilter}
+Focus Category / Subject: ${subjectFocus}${eventsContext}${customInstructions}
 
 Generate a formal court affidavit draft formatted for the Family Court of WA with jurat, numbered paragraphs, primary document citations, and Annexure tags (Annexure "BJH-1" to "BJH-9").
 Return JSON:
@@ -697,7 +790,10 @@ Return JSON:
       console.warn('Gemini Affidavit API error, falling back to court draft:', err?.message || err);
       res.json(FALLBACK_AFFIDAVIT());
     }
-  });
+  };
+
+  app.post('/api/gemini/affidavit-draft', handleAffidavitDraft);
+  app.post('/api/gemini/affidavit-drafter', handleAffidavitDraft);
 
   // Intelligent Document Intake & Case Recording Engine
   app.post('/api/gemini/ingest-document', async (req: express.Request, res: express.Response) => {
@@ -746,9 +842,9 @@ Return JSON:
         statutoryFactor = 'FLA 1975 s 60CC(2)(b) (Need to protect children from physical and psychological harm/neglect)';
         if (lower.includes('asthma') || lower.includes('emergency') || lower.includes('admission')) {
           hasBreach = true;
-          breachedOrderNumber = 'Order 5.1 (24-Hour Medical Notification Mandate)';
+          breachedOrderNumber = 'Order 11 & 12 (Medical Notification & Authorisation)';
           breachSeverity = 'Severe';
-          breachSummary = 'Concealment or delay in notifying Father of emergency medical presentation or prescription.';
+          breachSummary = 'Concealment or delay in notifying Father of emergency medical presentation or failure to authorise practitioner liaison.';
         }
       } else if (lower.includes('busselton') || lower.includes('withhold') || lower.includes('pick up') || lower.includes('handover') || lower.includes('gate') || lower.includes('interim order') || lower.includes('court') || lower.includes('registrar') || lower.includes('affidavit')) {
         if (lower.includes('affidavit') || lower.includes('court') || lower.includes('order')) {
@@ -764,7 +860,7 @@ Return JSON:
         }
         if (lower.includes('busselton') || lower.includes('withhold')) {
           hasBreach = true;
-          breachedOrderNumber = 'Order 4.2 & Order 13.1 (Parenting Schedule & 28-Day Travel Notice)';
+          breachedOrderNumber = 'Order 4 & Order 7 (Parenting Schedule & 28-Day Residence Notice)';
           breachSeverity = 'Severe';
           breachSummary = 'Unilateral removal of children outside Perth metropolitan area depriving Father of court-ordered care.';
         }
@@ -776,7 +872,7 @@ Return JSON:
         statutoryFactor = 'FLA 1975 s 60CC(3)(c) (Capacity to communicate constructively regarding children)';
         if (lower.includes('delay') || lower.includes('126') || lower.includes('hours') || lower.includes('ignore')) {
           hasBreach = true;
-          breachedOrderNumber = 'Order 9.1 (42-Hour Written Communication Mandate)';
+          breachedOrderNumber = 'Order 9 (42-Hour Written Communication Mandate)';
           breachSeverity = 'Moderate';
           breachSummary = 'Unilateral failure to respond to substantive parenting inquiry within mandated 42-hour window.';
         }
@@ -796,9 +892,10 @@ Return JSON:
 
       const nextNumber = existingDocCount + 1;
       const annexureNumber = `BJH-${nextNumber}`;
-      const docId = `DOC-2024-${String(nextNumber).padStart(3, '0')}`;
-      const dateMatch = rawText.match(/\b(202[3-5]-[0-1]\d-[0-3]\d)\b/) || rawText.match(/\b([0-3]?\d[\/\-\.][0-1]?\d[\/\-\.]202[3-5])\b/);
+      const dateMatch = rawText.match(/\b((?:202[3-9]|20[3-9]\d)-[0-1]\d-[0-3]\d)\b/) || rawText.match(/\b([0-3]?\d[\/\-\.][0-1]?\d[\/\-\.](?:202[3-9]|20[3-9]\d))\b/);
       const docDate = dateMatch ? (dateMatch[1].length === 10 ? dateMatch[1] : new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10);
+      const docYear = docDate ? docDate.slice(0, 4) : new Date().getFullYear().toString();
+      const docId = `DOC-${docYear}-${String(nextNumber).padStart(3, '0')}`;
 
       const titleClean = origin.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
       const formalTitle = `${titleClean.charAt(0).toUpperCase() + titleClean.slice(1)}`;
@@ -872,19 +969,29 @@ REQUIREMENTS FOR RECORDING:
 5. Determine Evidentiary Weight: "Sworn/Official" | "Third-Party Objective" | "Unverified Claim" with legal rationale under Evidence Act 1906 (WA).
 6. Extract a verbatim Key Excerpt with quotes (probative value for court).
 7. Synthesize a concise 1-2 sentence Key Fact.
-8. Check if this document demonstrates a contravention of the 14 Nov 2023 Interim Orders:
-   - Order 4.2 (Equal care / Bassendean PS changeovers Friday 15:30)
-   - Order 5.1 (24-hour medical notification mandate)
-   - Order 7.3 (Educational consultation & stability)
-   - Order 9.1 (42-hour written communication mandate)
-   - Order 11.2 (Non-disparagement)
-   - Order 13.1 (28-day notice for travel outside Perth metro)
+8. Check if this document demonstrates a contravention of the Operative Orders:
+   - Order 3 (Equal decision-making on education, religion, health, name, living arrangements)
+   - Order 4 & 5 (Live with / spend time schedule & school/residence handovers)
+   - Order 6 (School holiday and special occasion allocations)
+   - Order 7 (28-day notice for change of residence)
+   - Order 8 (SMS communication only, courteous & child-focused)
+   - Order 9 (42-hour written communication response mandate)
+   - Order 10 (Liberal telephone communication, unblocked devices)
+   - Order 11 & 12 (Notice of significant medical issues, Bassendean Total Health Care duplicate records)
+   - Order 14 & 15 (School events attendance; 24 hours notice by Applicant)
+   - Order 16 & 17 (Bassendean Primary School enrollment; FDRP for secondary school)
+   - Order 19, 20 & 21 (Passport facilitation, costs, photocopy)
+   - Order 22 (Travel outside Australia: 1 month notice, 14 days itinerary/contact details, passport exchange)
+   - Order 24 (Injunction: illicit substances / excess alcohol restraint)
+   - Order 25 (Injunction: non-denigration and non-disclosure of proceedings)
+   - Order 26 (Injunction: children not to be unsupervised under 14)
+   - Order 27 (s 68Q FLA inconsistency: parenting orders prevail over Perth Magistrates Court Conduct Agreement Order MC/CIV/PER/RO/205/2024)
 9. Assign the next sequential Annexure Number: "BJH-${existingDocCount + 1}".
 10. Determine if this should automatically be recorded as a Timeline Event in the Case 4344/2023 Chronology.
 
 Respond with strict JSON:
 {
-  "docId": "DOC-2024-${String(existingDocCount + 1).padStart(3, '0')}",
+  "docId": "DOC-${new Date().getFullYear()}-${String(existingDocCount + 1).padStart(3, '0')}",
   "title": "string",
   "category": "Medical" | "Education" | "Legal/Court" | "Direct Communication" | "Financial" | "Extracurricular",
   "date": "YYYY-MM-DD",
@@ -988,16 +1095,16 @@ Respond with strict JSON:
     if (lower.includes('asthma')) fallbackTags.push('Asthma');
     if (lower.includes('school') || lower.includes('bassendean')) fallbackTags.push('Bassendean PS');
     if (lower.includes('attendance')) fallbackTags.push('Attendance');
-    if (lower.includes('order 5.1') || (fallbackCategory === 'Medical' && lower.includes('prescription'))) fallbackTags.push('Order 5.1');
-    if (lower.includes('order 4.2') || lower.includes('withhold')) fallbackTags.push('Order 4.2');
-    if (lower.includes('order 9.1') || lower.includes('42 hour')) fallbackTags.push('Order 9.1');
+    if (lower.includes('order 11') || lower.includes('order 12') || lower.includes('order 5.1') || (fallbackCategory === 'Medical' && lower.includes('prescription'))) fallbackTags.push('Order 11 & 12');
+    if (lower.includes('order 4') || lower.includes('order 7') || lower.includes('order 4.2') || lower.includes('withhold')) fallbackTags.push('Order 4 & 7');
+    if (lower.includes('order 9') || lower.includes('order 9.1') || lower.includes('42 hour')) fallbackTags.push('Order 9');
     if (lower.includes('sms')) fallbackTags.push('SMS');
     if (lower.includes('email')) fallbackTags.push('Email');
     if (fallbackTags.length === 1) fallbackTags.push('Case 4344 Evidence');
 
     const hasBreachFallback = lower.includes('withhold') || lower.includes('busselton') || (lower.includes('asthma') && lower.includes('hospital')) || lower.includes('delay') || lower.includes('126');
     const breachedOrder = hasBreachFallback 
-      ? (lower.includes('hospital') ? 'Order 5.1' : lower.includes('busselton') ? 'Order 4.2 & 13.1' : 'Order 9.1')
+      ? (lower.includes('hospital') ? 'Order 11 & 12' : lower.includes('busselton') ? 'Order 4 & 7' : 'Order 9')
       : null;
 
     const requiresRespFallback = lower.includes('please confirm') || lower.includes('respond') || lower.includes('inquiry') || lower.includes('consent') || lower.includes('asthma') || lower.includes('quote');
@@ -1022,7 +1129,7 @@ Respond with strict JSON:
       daysOverdue: requiresRespFallback && !hasReplied ? 2 : (hasReplied ? 3.5 : 0),
       hoursOverdue: requiresRespFallback && !hasReplied ? 48 : (hasReplied ? 84 : 0),
       responseStatus: hasReplied ? 'completed' : 'waiting',
-      statutoryBasis: fallbackCategory === 'Medical' ? 'Order 5.1 (24h Medical Notice)' : 'Order 9.1 (42-Hour Written Communication Mandate)',
+      statutoryBasis: fallbackCategory === 'Medical' ? 'Order 11 & 12 (Medical Notification & Authorisation)' : 'Order 9 (42-Hour Written Communication Mandate)',
       hasBreach: hasBreachFallback,
       breachedOrderNumber: breachedOrder,
       breachSeverity: hasBreachFallback ? 'Severe' : null,
@@ -1032,6 +1139,25 @@ Respond with strict JSON:
         : fallbackCategory === 'Education'
         ? 's60CC(2)(c) - Developmental, psychological, emotional and educational needs'
         : 's60CC(2)(e) - Benefit of relationship with each parent',
+
+      // Communication productivity — recorded independently of tone and of
+      // the 42-hour clock. Deterministic defaults; the model refines them.
+      communicationProductivity: hasReplied
+        ? 'Non-Productive'
+        : (requiresRespFallback ? 'Unassessed' : 'Productive'),
+      nonProductiveMarkers: hasReplied ? ['No Substantive Answer'] : [],
+      substantiveResponse: hasReplied ? false : null,
+      productivityRationale: hasReplied
+        ? 'A reply was recorded but it supplied none of the information requested. Order 9 requires a response in substance, not merely a message within the window.'
+        : '',
+
+      // Per-child attribution — only children actually named are attributed.
+      childrenMentioned: detectChildrenInText(textToAnalyze + ' ' + origin),
+      childImpacts: buildFallbackChildImpacts(
+        textToAnalyze + ' ' + origin,
+        fallbackCategory,
+        hasBreachFallback ? 'Severe' : 'Informational'
+      ),
     };
 
     if (!ai) {
@@ -1064,7 +1190,7 @@ Extract comprehensive, court-admissible legal metadata across all sections:
    - "tags": array of 3-7 specific searchable legal tags
    - "keyFacts": array of 2-4 bullet points
 
-2. Response Requirement Review (Order 9.1 42h Mandate & Order 5.1):
+2. Response Requirement Review (Order 9 42h Mandate & Order 11 Medical Notice):
    - "requiresResponse": boolean (true if an inquiry, scheduling request, medical notice, or school coordination was sent requiring a reply)
    - "responseFormat": 'Email' | 'SMS' | 'Court Application' | 'Formal Letter' | 'Medical Clinic Notice' | 'School Notice' | 'Co-Parenting App'
    - "informationRequested": exact description of what was requested
@@ -1073,11 +1199,11 @@ Extract comprehensive, court-admissible legal metadata across all sections:
    - "daysOverdue": number of days overdue relative to 42-hour window (0 if on time)
    - "hoursOverdue": number of hours overdue relative to 42-hour window (0 if on time)
    - "responseStatus": "waiting" or "completed"
-   - "statutoryBasis": e.g. "Order 9.1 (42-Hour Written Communication Mandate)" or "Order 5.1"
+   - "statutoryBasis": e.g. "Order 9 (42-Hour Written Communication Mandate)" or "Order 11 (Significant Medical Notice)"
 
 3. Contravention & Timeline Event Detection:
-   - "hasBreach": boolean (does this document prove an order violation such as Order 4.2 changeover obstruction, Order 5.1 hospital concealment, Order 9.1 delay, Order 13.1 travel notice failure?)
-   - "breachedOrderNumber": string or null (e.g. "Order 5.1", "Order 4.2 & 13.1")
+   - "hasBreach": boolean (does this document prove an order violation such as Order 4 & 5 changeover obstruction, Order 11/12 medical concealment, Order 8/9 communication delay/non-SMS, Order 7/22 travel/address notice failure?)
+   - "breachedOrderNumber": string or null (e.g. "Order 9", "Order 4 & 5", "Order 11 & 12")
    - "breachSeverity": "Minor" | "Moderate" | "Severe" | null
    - "breachSummary": string or null
 
@@ -1089,6 +1215,42 @@ Extract comprehensive, court-admissible legal metadata across all sections:
      "s60CC(2)(d) - Capacity of each parent" |
      "s60CC(2)(e) - Benefit of relationship with each parent" |
      "s60CC(2)(f) - Any other relevant circumstances"
+
+5. Communication Productivity Assessment (SEPARATE AXIS FROM TONE AND FROM TIMING):
+   Where this document is or contains a communication, assess whether it moved a
+   parenting question forward. A message can be polite AND arrive within the
+   42-hour Order 9 window and still be Non-Productive because it answered
+   nothing. Judge substance only.
+   - "communicationProductivity": "Productive" | "Partially Productive" | "Non-Productive" | "Unassessed"
+   - "nonProductiveMarkers": array of zero or more of:
+       "No Substantive Answer", "Deflection / Counter-Accusation",
+       "Historical Grievance Raised", "Disparagement of Other Parent",
+       "Stonewalling / Refusal to Engage", "Repetition of Settled Matter",
+       "Unilateral Directive (No Consultation)", "No Child-Related Content",
+       "Emotional Escalation", "Volume Without Information", "Deferred Without Date"
+   - "substantiveResponse": boolean | null (null if not a reply)
+   - "productivityRationale": one or two sentences explaining the classification.
+     If a reply was timely but empty, say so explicitly — that is an Order 9
+     contravention in substance rather than in timing.
+
+6. Per-Child Attribution (CRITICAL — do NOT attribute to both children by default):
+   Attribute only to a child the document actually names or unambiguously concerns.
+   If the source says "the children" generally, attribute to both and mark
+   directlyEvidenced false. If it names only one, attribute only to that one.
+   - "childrenMentioned": array containing "Isabella" and/or "Mason" (may be empty)
+   - "childImpacts": array of:
+     {
+       "child": "Isabella" | "Mason",
+       "childCategory": one of "Health & Medical" | "Education & School" |
+         "Emotional & Psychological" | "Care Time & Handover" |
+         "Extracurricular & Social" | "Views & Wishes Expressed" |
+         "Safety & Wellbeing" | "Developmental & Therapy",
+       "impactSummary": "what this meant for THAT child specifically",
+       "severity": "Critical" | "High" | "Moderate" | "Low" | "Informational",
+       "s60CCFactorRef": "string",
+       "directlyEvidenced": boolean,
+       "sourceExcerpt": "verbatim fragment naming the child, if present"
+     }
 
 Return strict JSON matching these fields.
 `;
@@ -1135,25 +1297,44 @@ Return strict JSON matching these fields.
       }
       const derived: any[] = [];
       communicationLogs.forEach((c: any, idx: number) => {
-        if (c.breachOf42HourMandate || (c.lagHours && c.lagHours > 42)) {
+        const isLate = c.breachOf42HourMandate || (c.lagHours && c.lagHours > 42);
+        const isNonProductive =
+          c.productivityAssessment?.productivity === 'Non-Productive' ||
+          c.productivityAssessment?.substantiveResponse === false;
+
+        // Capture BOTH failure modes. A reply that landed inside the 42-hour
+        // window but answered nothing is an Order 9 contravention in
+        // substance; filtering on latency alone made those invisible.
+        if (isLate || isNonProductive) {
           derived.push({
             id: `REQ-${String(idx + 1).padStart(3, "0")}`,
             format: c.channel || "Written Communication",
             dateRequested: c.timestamp?.slice(0, 16) || new Date().toISOString().slice(0, 16),
             informationRequested: `Response to written notice: "${c.content?.slice(0, 100) || "Care coordination"}"`,
-            responseDetails: c.lagHours ? `Response received with ${c.lagHours}h latency (breaching 42h mandate).` : "Response pending.",
+            responseDetails: c.lagHours
+              ? (isLate
+                  ? `Response received with ${c.lagHours}h latency (breaching the 42h mandate)${isNonProductive ? ", and it supplied none of the information requested." : "."}`
+                  : `Response received within the 42h mandate at ${c.lagHours}h, but it supplied none of the information requested — compliant in timing, non-compliant in substance.`)
+              : "Response pending.",
             responseDate: c.lagHours ? c.timestamp : null,
-            daysOverdue: Math.max(0, Math.round(((c.lagHours || 48) - 42) / 24)),
-            hoursOverdue: Math.max(0, Math.round((c.lagHours || 48) - 42)),
+            daysOverdue: isLate ? Math.max(0, Math.round(((c.lagHours || 48) - 42) / 24)) : 0,
+            hoursOverdue: isLate ? Math.max(0, Math.round((c.lagHours || 48) - 42)) : 0,
             status: c.lagHours ? "completed" : "waiting",
             requestingParty: c.sender || "Benjamin Hawkins",
             respondingParty: c.recipient || "Sue-Anne Hawkins",
             sourceDocId: c.id || "COMM-LOG",
             sourceCitation: `[${c.id || "COMM"}] ${c.channel || "Communication"} (${c.timestamp || "Recorded"})`,
-            statutoryBasis: "Order 9.1 (42-Hour Written Communication Mandate)",
+            statutoryBasis: "Order 9 (42-Hour Written Communication Mandate)",
             priority: (c.lagHours && c.lagHours > 100) ? "Critical" : "High",
             aiReviewRationale: "Derived from verified communication logs with documented response latency exceeding the 42-hour court mandate.",
-            actionsTaken: ["Logged in communication audit ledger"]
+            actionsTaken: ["Logged in communication audit ledger"],
+            responseProductivity: c.productivityAssessment?.productivity
+              || (c.lagHours ? "Non-Productive" : "Unassessed"),
+            substantiveResponse: c.productivityAssessment?.substantiveResponse ?? false,
+            nonProductiveMarkers: c.productivityAssessment?.markers || [],
+            productivityRationale: c.productivityAssessment?.rationale
+              || "Timeliness and substance are tracked separately: a reply inside the 42-hour window that supplies none of the information requested has not discharged Order 9.",
+            childrenConcerned: c.childrenReferenced || []
           });
         }
       });
@@ -1170,7 +1351,7 @@ Return strict JSON matching these fields.
           completedCount: fallbackList.filter(r => r.status === 'completed').length,
           overdueBreachesCount: fallbackList.filter(r => r.daysOverdue > 0).length,
           reviewedItemsCount: documents.length + communicationLogs.length,
-          aiNotes: 'Deterministic legal evaluation completed. 4 items currently in Waiting section and 4 resolved in Completed section under Order 9.1 and Order 5.1.'
+          aiNotes: 'Deterministic legal evaluation completed. 4 items currently in Waiting section and 4 resolved in Completed section under Order 9 and Order 11.'
         }
       });
     }
@@ -1184,7 +1365,7 @@ ${CASE_CONTEXT_PROMPT}
 
 TASK: KNOWLEDGE BASE RESPONSE REQUIREMENT REVIEW ENGINE
 Review the case knowledge base (documents, emails, SMS logs, clinic reports, school notices).
-Under the Interim Orders (specifically Order 9.1: 42-hour written communication response mandate; Order 5.1: 24-hour medical notification; Order 7.3: educational consultation):
+Under the Operative Orders (specifically Order 9: 42-hour written communication response mandate; Order 8: SMS only courteous communication; Order 11 & 12: medical notification and records authorisation; Order 3, 16 & 17: educational consultation and decision-making):
 Determine every communication, request, or inquiry where a response was or is required.
 
 DOCUMENT KNOWLEDGE BASE:
@@ -1207,9 +1388,28 @@ For each item requiring a response, return:
 11. "respondingParty": "Sue-Anne Hawkins" | "Benjamin Hawkins" | "Third Party"
 12. "sourceDocId": corroborating doc ID
 13. "sourceCitation": citation
-14. "statutoryBasis": e.g. "Order 9.1 (42-Hour Written Communication Mandate)"
+14. "statutoryBasis": e.g. "Order 9 (42-Hour Written Communication Mandate)"
 15. "priority": "Critical" | "High" | "Routine"
 16. "aiReviewRationale": brief legal assessment
+17. "responseProductivity": "Productive" | "Partially Productive" | "Non-Productive" | "Unassessed"
+18. "substantiveResponse": boolean — true ONLY if the reply actually supplied
+    what was asked for. Mark a requirement as status "completed" when a reply
+    was sent, but set substantiveResponse false where that reply answered
+    nothing. Timeliness and substance are separate obligations: a reply inside
+    the 42-hour window that supplies no information has NOT discharged
+    Order 9, and must be recorded as such rather than closed as compliant.
+19. "nonProductiveMarkers": array from "No Substantive Answer",
+    "Deflection / Counter-Accusation", "Historical Grievance Raised",
+    "Disparagement of Other Parent", "Stonewalling / Refusal to Engage",
+    "Repetition of Settled Matter", "Unilateral Directive (No Consultation)",
+    "No Child-Related Content", "Emotional Escalation",
+    "Volume Without Information", "Deferred Without Date"
+20. "productivityRationale": one or two sentences
+21. "childrenConcerned": array of "Isabella" and/or "Mason" — only children the
+    request actually concerns
+
+IMPORTANT: also raise requirements for communications that were answered ON TIME
+but non-productively. Reviewing latency alone misses the larger pattern.
 
 Return strict JSON:
 {
@@ -1277,7 +1477,13 @@ Return strict JSON:
 
   // 1. AI Review Party Profiles
   app.post('/api/gemini/review-profiles', async (req, res) => {
-    const { currentProfiles, documents = [] } = req.body;
+    const {
+      currentProfiles,
+      documents = [],
+      communications = [],
+      timeline = [],
+      childCategoryCounts = {},
+    } = req.body;
     const ai = getAiClient();
     const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
 
@@ -1294,25 +1500,80 @@ Return strict JSON:
 
     try {
       const prompt = `${CASE_CONTEXT_PROMPT}
-TASK: Based on the knowledge base documents and communication evidence, review and determine information about each party:
-- Benjamin Hawkins (Applicant / Father)
-- Sue-Anne Hawkins (Respondent / Mother)
-- Isabella Hawkins (Child, age 10)
-- Mason Hawkins (Child, age 9)
+TASK: Review the knowledge base and record findings against EVERY party profile.
+There are FOUR profiles and all four must be returned:
+- PROF-001 Benjamin Hawkins (Applicant / Father)   — parent profile
+- PROF-002 Sue-Anne Hawkins (Respondent / Mother)  — parent profile
+- PROF-003 Isabella Hawkins (Child)                — CHILD profile
+- PROF-004 Mason Hawkins (Child)                   — CHILD profile
 
-For each party, determine:
-1. Behaviour: summary, conduct traits, order compliance rating, observed incidents count, risk factors.
-2. Concerns: raised by party, substantiated concerns against party, safety and wellbeing notes.
-3. Communication tone pattern: primaryTone (e.g. BIFF / Professional, Hostile / Combative, Avoidant / High Latency), avgResponseLatencyHours, Order 9.1 breach rate, verbatim quotes from evidence with date and context.
-4. Parenting capacity: school engagement, medical management, routine consistency.
-5. Evidentiary references citing specific documents (e.g. DOC-2024-008, DOC-2024-004).
+═════════ PART A — PARENT PROFILES (PROF-001, PROF-002) ═════════
+1. behaviour: summary, conduct traits, orderComplianceRating, observedIncidentsCount, riskFactors.
+2. concerns: raisedByParty, substantiatedConcernsAgainstParty, safetyAndWellbeingNotes.
+3. communicationTonePattern: primaryTone ('BIFF / Professional' | 'Hostile / Combative' | 'Avoidant / High Latency' | 'Neutral'), avgResponseLatencyHours, order9BreachRate, toneCharacteristics, verbatimExamples [{excerpt, date, context}].
+4. communicationProductivityPattern — THIS IS A SEPARATE AXIS FROM TONE AND MUST BE COMPLETED:
+   {
+     "productiveCount": number,
+     "partiallyProductiveCount": number,
+     "nonProductiveCount": number,
+     "nonProductiveRate": "NN.N%",
+     "substantiveResponseRate": "NN.N%",
+     "dominantNonProductiveMarkers": [ up to 4 of: "No Substantive Answer", "Deflection / Counter-Accusation", "Historical Grievance Raised", "Disparagement of Other Parent", "Stonewalling / Refusal to Engage", "Repetition of Settled Matter", "Unilateral Directive (No Consultation)", "No Child-Related Content", "Emotional Escalation", "Volume Without Information", "Deferred Without Date" ],
+     "nonProductiveExamples": [{ "excerpt": "...", "date": "YYYY-MM-DD", "context": "marker that applies" }],
+     "assessmentNote": "string"
+   }
+   A communication is NON-PRODUCTIVE when it conveys no actionable parenting
+   information — even if it was polite and even if it arrived inside the 42-hour
+   Order 9 window. Judge substance, not tone and not timing. A reply that does
+   not answer the question asked did not discharge the Order 9 obligation.
+5. parentingCapacity: schoolEngagement, medicalManagement, routineConsistency.
+6. evidentiaryReferences: [{ docId, title, citation, note }] citing real vault IDs only.
+
+═════════ PART B — CHILD PROFILES (PROF-003, PROF-004) ═════════
+Isabella and Mason are subject children and parties in their own right. Do NOT
+merge them. Assess each SEPARATELY and only from evidence that actually names
+or clearly concerns that child. Where the record is silent for a child, say so
+explicitly rather than importing the other sibling's findings.
+
+For each child set behaviour.summary to 'Not applicable to a subject child',
+orderComplianceRating to 'N/A', parentingCapacity fields to 'N/A — subject child',
+and populate "childDetail":
+{
+  "childName": "Isabella" | "Mason",
+  "school": "string",
+  "yearLevel": "string",
+  "developmentalNeeds": ["string"],
+  "healthAndMedical": { "summary": "string", "conditions": ["string"], "treatingProviders": ["string"], "complianceNotes": "string" },
+  "educationAndSchooling": { "summary": "string", "attendanceNotes": "string", "supportNeeds": ["string"] },
+  "emotionalAndPsychological": { "summary": "string", "observedIndicators": ["string"], "exposureToConflictNotes": "string" },
+  "viewsExpressed": { "summary": "string", "recordedViews": [{"excerpt":"...","date":"YYYY-MM-DD","context":"..."}], "weightConsiderations": "string" },
+  "extracurricularAndSocial": { "summary": "string", "activities": ["string"] },
+  "safetyAndRiskNotes": "string",
+  "s60CCFactorLinks": ["Family Law Act 1975, s 60CC(2)(a)", ...]
+}
+Also populate the child's concerns.safetyAndWellbeingNotes and
+evidentiaryReferences from documents concerning that child.
+
+CRITICAL — ZERO HALLUCINATION FOR CHILDREN: never invent a diagnosis, a
+therapy, an expressed view, or a school incident. If nothing in the vault
+addresses a field, write "No evidence on file" and leave the arrays empty.
+An empty child field is a knowledge gap to be closed, not a blank to be filled.
 
 DOCUMENTS IN VAULT:
 ${JSON.stringify(documents.slice(0, 12), null, 2)}
 
+COMMUNICATION RECORDS (for tone AND productivity assessment):
+${JSON.stringify((communications || []).slice(0, 30), null, 2)}
+
+TIMELINE EVENTS (for per-child attribution):
+${JSON.stringify((timeline || []).slice(0, 30), null, 2)}
+
+CURRENT PER-CHILD TIMELINE CATEGORY COUNTS (empty categories are gaps):
+${JSON.stringify(childCategoryCounts, null, 2)}
+
 Return a strict JSON object with:
 {
-  "profiles": [ Array of updated PartyProfile objects preserving IDs PROF-001, PROF-002, PROF-003, PROF-004 ],
+  "profiles": [ ALL FOUR updated PartyProfile objects, preserving IDs PROF-001, PROF-002, PROF-003, PROF-004 and their existing "role" values ],
   "summary": "Short 1-sentence legal summary of findings"
 }`;
 
@@ -1326,7 +1587,41 @@ Return a strict JSON object with:
 
       const parsed = JSON.parse(response.text || '{}');
       if (parsed.profiles && Array.isArray(parsed.profiles)) {
-        return res.json(parsed);
+        // Merge rather than replace: a model that returns only two profiles
+        // must never silently delete the children's records. Existing
+        // profiles are the base; returned fields overwrite on top.
+        const returnedById = new Map<string, any>(
+          parsed.profiles
+            .filter((p: any) => p && p.id)
+            .map((p: any) => [p.id, p])
+        );
+
+        const merged = (currentProfiles || []).map((existing: any) => {
+          const incoming = returnedById.get(existing.id);
+          if (!incoming) return { ...existing, lastAiReviewTimestamp: existing.lastAiReviewTimestamp };
+          returnedById.delete(existing.id);
+          return {
+            ...existing,
+            ...incoming,
+            id: existing.id,
+            role: existing.role,
+            childDetail: incoming.childDetail
+              ? { ...(existing.childDetail || {}), ...incoming.childDetail }
+              : existing.childDetail,
+            lastAiReviewTimestamp: timestamp,
+          };
+        });
+
+        // Any genuinely new profile the model produced still gets through.
+        returnedById.forEach((p: any) => merged.push({ ...p, lastAiReviewTimestamp: timestamp }));
+
+        const reviewedChildren = merged.filter((p: any) => p.childDetail).length;
+        return res.json({
+          profiles: merged,
+          summary:
+            parsed.summary ||
+            `AI reviewed ${documents.length} vault documents across ${merged.length} party profiles (including ${reviewedChildren} subject children) and refreshed behavioural, communication-productivity and child-specific findings.`,
+        });
       }
       throw new Error('Malformed profiles payload');
     } catch (err: any) {
@@ -1361,7 +1656,7 @@ Specifically ensure items like:
 - "Sue-Anne failed to provide medical care for children" (asthma emergency concealment, withheld hospital discharge summary)
 - "Unilateral removal of children to Busselton during Father's care weekend"
 - "Obstruction of speech pathology and orthodontic treatment"
-- "Chronic contravention of Order 9.1 (42-hour communication rule)"
+- "Chronic contravention of Order 9 (42-hour communication rule)"
 - "Exposure of children to hostile denigration and gatekeeping"
 
 For each issue provide:
@@ -1434,7 +1729,7 @@ TASK: Review the documents against the Family Court statutory best interests fac
 - derived from s60CC(2)(c)/(d): Provides medical and health care when required (asthma response, allied health, discharge compliance)
 - derived from s60CC(2)(d) & Child Support Act 1989: Provides financial support for the child (child support, shared costs)
 - derived from s60CC(2)(c): Facilitates the child's education needs (attendance, punctuality, school engagement)
-- derived from s60CC(2)(d): Responds to communications in a timely manner (Order 9.1 42-hour rule, BIFF standards)
+- derived from s60CC(2)(d): Responds to communications in a timely manner (Order 9 42-hour rule, BIFF standards)
 - general credibility consideration: Provides truthful information to the Court and professionals (affidavit veracity vs objective third-party proof)
 
 Populate 'aiFlaggedEvidence' for each factor, categorizing flags into 'favorable_to_applicant' or 'respondent_risk_flag' with document ID citations. Ensure all current criteria objects provided in the request are retained and updated with primary citations.
@@ -1472,7 +1767,7 @@ Return a strict JSON object:
 
   // 4. AI Assess Proposed Parenting Orders (Assessment of selected or ticked orders against CourtCriteria)
   app.post('/api/gemini/assess-proposed-orders', async (req, res) => {
-    const { ordersToAssess = [], courtCriteria = [], documentsExcerpt = [] } = req.body;
+    const { ordersToAssess = [], documentsExcerpt = [] } = req.body;
     const ai = getAiClient();
     const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
 
@@ -1480,7 +1775,6 @@ Return a strict JSON object:
       const isSueAnne = o.proposingParty === "Sue-Anne Hawkins";
       const isMedical = o.category === "Medical & Therapy" || (o.title + o.proposedText).toLowerCase().includes("medic") || (o.title + o.proposedText).toLowerCase().includes("doctor");
       const isRelocation = o.category === "Living Arrangements / Care Time" && (o.proposedText.toLowerCase().includes("relocat") || o.proposedText.toLowerCase().includes("travel"));
-      const isCommunication = o.category === "Communication & Notice" || (o.proposedText.toLowerCase().includes("sms") || o.proposedText.toLowerCase().includes("notice"));
 
       let riskLevel: "Low" | "Medium" | "High" | "Critical" = isSueAnne ? (isMedical || isRelocation ? "Critical" : "High") : (isMedical ? "Low" : "Medium");
       
@@ -1533,7 +1827,7 @@ Return a strict JSON object:
             disputeSummary: isSueAnne
               ? 'Directly replicates previous contravention patterns of medical concealment and changeover withholding.'
               : 'Formulated in direct response to Mother\'s past contraventions to create an enforceable, court-admissible structure.',
-            breachedOrderRef: isSueAnne ? 'Order 5.1 & Order 9.1' : 'Interim Order 4.2 & 9.1',
+            breachedOrderRef: isSueAnne ? 'Order 11 & Order 9' : 'Order 4 & Order 9',
             relevantIncidents: isSueAnne ? ['DOC-2024-004', 'DOC-2024-008', 'REQ-002'] : ['DOC-2024-004', 'DOC-2024-008']
           }
         ],
@@ -1677,9 +1971,7 @@ Return a strict JSON object:
       periodLabel = 'Specified Period', 
       startDate = null, 
       endDate = null, 
-      breaches = [], 
-      documents = [], 
-      orders = [] 
+      breaches = [] 
     } = req.body;
 
     const totalBreaches = breaches.length;
@@ -1799,7 +2091,7 @@ METRICS:
 - Severe breaches: ${severeCount}
 - Moderate breaches: ${moderateCount}
 - Minor breaches: ${minorCount}
-- Average Communication Lag: ${avgLag} hours (against 42h Order 9.1 mandate)
+- Average Communication Lag: ${avgLag} hours (against 42h Order 9 mandate)
 - Third-Party Corroboration Rate: ${corroborationRate}%
 
 SAMPLE OF FLAGGED BREACHES:
@@ -1814,7 +2106,7 @@ Return a strict JSON object with these EXACT keys:
   "children": "Isabella Hawkins (age 10), Mason Hawkins (age 9)",
   "periodCovered": "${periodLabel}",
   "compiledDate": "${timestamp.split('T')[0]}",
-  "executiveSummary": "Paragraph summarizing total contraventions, severity, primary affected orders (Order 4.2, Order 5.1, Order 9.1), and objective proof.",
+  "executiveSummary": "Paragraph summarizing total contraventions, severity, primary affected orders (Order 4, Order 11 & 12, Order 9), and objective proof.",
   "patternAnalysis": "Detailed analysis of behavioral patterns (e.g. Friday changeover withholding, communications latency, medical concealment, unilateral actions). Address willfulness.",
   "statutoryContraventionAnalysis": {
     "reasonableExcuseEvaluation": "Rigorous analysis under FLA s 70NEB / s 70NFB regarding why Respondent had no reasonable excuse for these breaches.",
@@ -1850,6 +2142,155 @@ Return a strict JSON object with these EXACT keys:
   });
 
 
+  // 6. Floating Case Assistant — cross-section retrieval + coverage diagnostics
+  app.post('/api/gemini/case-assistant', async (req, res) => {
+    const {
+      message = '',
+      history = [],
+      coverageSummary = '',
+      caseState = {},
+    } = req.body;
+
+    const ai = getAiClient();
+
+    // The coverage summary is computed deterministically on the client from
+    // the live store. Even without an AI key it fully answers "why was this
+    // not generated" — so the fallback returns it rather than failing.
+    const returnCoverageFallback = () => {
+      res.json({
+        reply: `[COVERAGE-GROUNDED RESPONSE — generative model unavailable, answering from the deterministic case analysis]
+
+Your question: "${message}"
+
+${coverageSummary || 'No coverage analysis was supplied with this request.'}
+
+Every line above is derived directly from the current case store. No facts have been inferred or supplied from outside the vault.`,
+        citations: [],
+        coverageGrounded: true,
+        modelUsed: 'none (deterministic fallback)',
+      });
+    };
+
+    if (!ai) {
+      return returnCoverageFallback();
+    }
+
+    try {
+      const systemInstruction = `
+${CASE_CONTEXT_PROMPT}
+
+YOU ARE THE EMBEDDED CASE ASSISTANT FOR FCWA CASE 4344/2023.
+You sit alongside every screen of the case management system and can see the
+ENTIRE recorded record: documents, timeline events, per-child timelines,
+communications, response requirements, party profiles (including both subject
+children), statutory criteria, orders, issues, discrepancies and knowledge gaps.
+
+YOUR THREE DUTIES:
+
+1. ANSWER FROM THE RECORD.
+   Cite exact document IDs in square brackets, e.g. [DOC-2024-001]. If the
+   record does not contain the answer, say so plainly. Never fill a gap with
+   plausible-sounding detail — an unevidenced assertion is worse than an
+   admitted gap in these proceedings.
+
+2. EXPLAIN ABSENCES — this is your distinguishing function.
+   When asked why something was NOT generated (a timeline event that never
+   appeared, an empty child category, a statutory factor with no evidence),
+   diagnose it against the COVERAGE ANALYSIS below. Known pipeline behaviours
+   you must reason with:
+     • Timeline events are only auto-created at ingestion when the AI flags
+       BOTH createTimelineEvent AND hasBreach. Non-breach documents are filed
+       as evidence and never reach the chronology. This is the single most
+       common reason a document "produced nothing".
+     • Only the first ~260 characters of a document form the excerpt used by
+       some classifiers, so breach wording buried deep in a long PDF or SMS
+       export is frequently missed.
+     • Communications ingested before productivity capture was enabled carry
+       no stored assessment and are scored on the fly by a weaker
+       deterministic classifier that cannot see the request being answered.
+     • A child receives no timeline entries unless childrenMentioned or
+       childImpacts was populated on the event.
+   Always give: what is missing → why the pipeline did not produce it → the
+   concrete remedial step.
+
+3. SURFACE MISSING KNOWLEDGE.
+   Identify what the case still does not know, prioritised by how much it
+   weakens a s 60CC submission, and name the specific document, report or
+   record that would close each gap.
+
+TREATMENT OF THE CHILDREN:
+Isabella and Mason are parties in their own right. Answer about them
+individually — never merge them into "the children" when the record
+distinguishes them. Each carries their own profile and their own timeline
+categories (Health & Medical, Education & School, Emotional & Psychological,
+Care Time & Handover, Extracurricular & Social, Views & Wishes Expressed,
+Safety & Wellbeing, Developmental & Therapy).
+
+COMMUNICATION PRODUCTIVITY:
+Productivity is recorded separately from tone and separately from the Order
+9.1 42-hour clock. A reply can be civil, arrive within 42 hours, and still be
+Non-Productive because it answered nothing. Where that pattern appears, frame
+it as a contravention in SUBSTANCE — timeliness alone does not discharge the
+obligation to respond to a parenting query.
+
+STYLE: Direct and specific. Lead with the finding. Use short paragraphs and
+lists. No preamble.
+
+═══════════════ DETERMINISTIC COVERAGE ANALYSIS ═══════════════
+${coverageSummary}
+
+═══════════════ FULL CASE STATE ═══════════════
+${JSON.stringify(caseState, null, 1).slice(0, 60000)}
+`;
+
+      const contents: any[] = [];
+      if (Array.isArray(history)) {
+        history.forEach((h: any) => {
+          const text = h.text || h.content || '';
+          if (text.trim()) {
+            contents.push({
+              role: h.sender === 'user' || h.role === 'user' ? 'user' : 'model',
+              parts: [{ text }],
+            });
+          }
+        });
+      }
+      contents.push({ role: 'user', parts: [{ text: message }] });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents,
+        config: { systemInstruction },
+      });
+
+      const replyText = response.text || 'No response generated.';
+
+      // Resolve any [DOC-xxxx-xxx] citations back to vault titles
+      const citationRegex = /\[(DOC-\d{4}-\d{3})\]/g;
+      const foundIds = new Set<string>();
+      let match;
+      while ((match = citationRegex.exec(replyText)) !== null) {
+        foundIds.add(match[1]);
+      }
+
+      const stateDocs = Array.isArray(caseState?.documents) ? caseState.documents : [];
+      const citations = Array.from(foundIds).map(id => {
+        const doc = stateDocs.find((d: any) => d.id === id);
+        return { docId: id, title: doc ? doc.title : `Case Exhibit ${id}` };
+      });
+
+      res.json({
+        reply: replyText,
+        citations,
+        coverageGrounded: true,
+        modelUsed: 'gemini-3.8-flash',
+      });
+    } catch (err: any) {
+      console.warn('Case assistant error, returning deterministic coverage answer:', err?.message || err);
+      returnCoverageFallback();
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -1865,9 +2306,30 @@ Return a strict JSON object with these EXACT keys:
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Family Court Intelligence System running on port ${PORT}`);
   });
+
+  const gracefulShutdown = (signal: string) => {
+    console.log(`\nReceived ${signal}. Shutting down gracefully...`);
+    server.close(async () => {
+      console.log('HTTP server closed.');
+      try {
+        await closePgPool();
+      } catch (err) {
+        console.error('Error closing database pool:', err);
+      }
+      process.exit(0);
+    });
+
+    setTimeout(() => {
+      console.error('Graceful shutdown timed out. Forcing process termination.');
+      process.exit(1);
+    }, 10000).unref();
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
 startServer();

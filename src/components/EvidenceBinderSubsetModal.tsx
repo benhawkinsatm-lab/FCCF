@@ -8,10 +8,6 @@ import {
   ExternalLink, 
   Scale, 
   ShieldCheck, 
-  FileText,
-  FileCheck,
-  Calendar,
-  Sparkles,
   ArrowRight
 } from 'lucide-react';
 import { DocumentRecord } from '../types';

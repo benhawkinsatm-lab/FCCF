@@ -1,22 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  FileText, 
-  ExternalLink, 
   Copy, 
   Check, 
-  Tag, 
-  ShieldCheck, 
-  Scale, 
-  Calendar, 
-  Building2, 
   Maximize2,
-  Stethoscope,
-  GraduationCap,
-  MessageSquare,
-  Receipt,
-  Trophy,
   Search,
-  CheckCircle2,
   Layers,
   ChevronRight,
   ScanLine,
@@ -24,7 +11,7 @@ import {
   X,
   Trash2
 } from 'lucide-react';
-import { DocumentRecord, DocumentCategory } from '../../types';
+import { DocumentRecord } from '../../types';
 
 interface DocumentSplitViewProps {
   documents: DocumentRecord[];
@@ -75,18 +62,6 @@ export const DocumentSplitView: React.FC<DocumentSplitViewProps> = ({
       d.sourceOrigin.toLowerCase().includes(q)
     );
   });
-
-  const getCategoryIcon = (category: DocumentCategory) => {
-    switch (category) {
-      case 'Medical': return Stethoscope;
-      case 'Education': return GraduationCap;
-      case 'Legal/Court': return Scale;
-      case 'Direct Communication': return MessageSquare;
-      case 'Financial': return Receipt;
-      case 'Extracurricular': return Trophy;
-      default: return FileText;
-    }
-  };
 
   const handleCopyCitation = () => {
     if (!activeDoc) return;
@@ -144,7 +119,6 @@ export const DocumentSplitView: React.FC<DocumentSplitViewProps> = ({
           {filteredList.map((doc) => {
             const isActive = doc.id === activeDocId;
             const isSelected = selectedDocIds.has(doc.id);
-            const CategoryIcon = getCategoryIcon(doc.category);
 
             return (
               <div

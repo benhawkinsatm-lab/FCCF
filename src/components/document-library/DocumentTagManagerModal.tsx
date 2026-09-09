@@ -6,9 +6,7 @@ import {
   Check, 
   Sparkles, 
   AlertCircle, 
-  Scale, 
-  Bookmark,
-  FileText
+  Bookmark
 } from 'lucide-react';
 import { DocumentRecord } from '../../types';
 

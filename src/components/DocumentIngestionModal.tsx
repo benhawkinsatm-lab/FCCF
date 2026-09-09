@@ -21,7 +21,6 @@ import {
   Edit3,
   Info,
   Clock,
-  Send,
   ShieldAlert,
   ScanLine,
   Image as ImageIcon,
@@ -32,8 +31,21 @@ import {
   Search,
   CheckCheck
 } from 'lucide-react';
-import { DocumentRecord, DocumentCategory, EvidentiaryWeight, ResponseRequirement, ResponseFormat, TimelineEvent } from '../types';
+import {
+  DocumentRecord,
+  DocumentCategory,
+  EvidentiaryWeight,
+  ResponseRequirement,
+  ResponseFormat,
+  TimelineEvent,
+  ChildName,
+  ChildImpactRecord,
+  CommunicationProductivity,
+  NonProductiveMarker,
+} from '../types';
 import { performOcr, isImageFile, generateSampleCourtDocumentFile, OcrResult, OcrProgress } from '../services/ocrService';
+import { classifyProductivity, detectChildrenReferenced } from '../utils/communicationProductivity';
+import { inferChildCategory } from '../utils/childTimelineService';
 
 export interface CategorySchemaItem {
   value: DocumentCategory;
@@ -50,37 +62,37 @@ export const METADATA_CATEGORIES: CategorySchemaItem[] = [
     value: 'Medical',
     label: 'Medical',
     description: 'Hospital admissions, GP consultations, specialist reports, therapy logs & prescription compliance',
-    statutoryContext: 'Interim Order 5.1 (24-hr written medical notice mandate) & Best Interests FLA s 60CC',
+    statutoryContext: 'Orders 11 & 12 (Notice of medical issues & practitioner authorisation) & Best Interests FLA s 60CC',
     badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300',
     icon: Stethoscope,
-    suggestedTags: ['Medical', 'Asthma', 'Order 5.1', 'Prescription', 'Emergency', 'SJOG Midland', 'Speech Therapy', 'GP Clinic'],
+    suggestedTags: ['Medical', 'Asthma', 'Order 11 & 12', 'Prescription', 'Emergency', 'SJOG Midland', 'Speech Therapy', 'GP Clinic'],
   },
   {
     value: 'Education',
     label: 'Education',
     description: 'Bassendean PS attendance records, term reports, teacher correspondence, absence audits',
-    statutoryContext: 'Interim Order 7.3 (Educational access) & WA School Education Act 1999 attendance obligations',
+    statutoryContext: 'Orders 3, 16 & 17 (Consultation & Bassendean PS enrollment) & WA School Education Act 1999',
     badgeClass: 'bg-blue-50 text-blue-800 border-blue-300',
     icon: GraduationCap,
-    suggestedTags: ['Education', 'Bassendean PS', 'Attendance', 'Report Card', 'Order 7.3', 'Unexplained Absence', 'Lateness', 'Parent-Teacher'],
+    suggestedTags: ['Education', 'Bassendean PS', 'Attendance', 'Report Card', 'Order 16', 'Order 17', 'Unexplained Absence', 'Lateness', 'Parent-Teacher'],
   },
   {
     value: 'Legal/Court',
     label: 'Legal/Court',
     description: 'Family Court sealed orders, sworn affidavits, subpoenas, Form 2 contravention applications & transcripts',
-    statutoryContext: 'Family Court Act 1997 (WA) & FLA 1975 statutory framework',
+    statutoryContext: 'Orders 4 & 5 (Live with / Spend time & Handover) & FLA 1975 statutory framework',
     badgeClass: 'bg-purple-50 text-purple-800 border-purple-300',
     icon: Scale,
-    suggestedTags: ['Legal/Court', 'Interim Orders', 'Order 4.2', 'Affidavit', 'Contravention', 'Subpoena', 'Form 2', 'eCourts WA'],
+    suggestedTags: ['Legal/Court', 'Operative Orders', 'Order 4', 'Order 5', 'Affidavit', 'Contravention', 'Subpoena', 'Form 2', 'eCourts WA'],
   },
   {
     value: 'Direct Communication',
     label: 'Direct Communication',
     description: 'SMS threads, parenting app messages, email exports & changeover gate communication logs',
-    statutoryContext: 'Interim Order 9.1 (Mandatory 42-hour response rule) & Non-denigration Order 11.2',
+    statutoryContext: 'Order 8 (SMS only) & Order 9 (Mandatory 42-hour response rule)',
     badgeClass: 'bg-amber-50 text-amber-800 border-amber-300',
     icon: MessageSquare,
-    suggestedTags: ['Direct Communication', 'SMS', 'Email', 'Order 9.1', '42h Mandate', 'Response Lag', 'Handover Gate', 'Withholding'],
+    suggestedTags: ['Direct Communication', 'SMS', 'Email', 'Order 8', 'Order 9', '42h Mandate', 'Response Lag', 'Handover Gate', 'Withholding'],
   },
   {
     value: 'Financial',
@@ -108,6 +120,7 @@ interface DocumentIngestionModalProps {
   onDocumentAdded: (doc: DocumentRecord) => void;
   onResponseRequirementAdded?: (req: ResponseRequirement) => void;
   onTimelineEventAdded?: (event: TimelineEvent) => void;
+  existingDocuments?: DocumentRecord[];
 }
 
 export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
@@ -116,6 +129,7 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
   onDocumentAdded,
   onResponseRequirementAdded,
   onTimelineEventAdded,
+  existingDocuments = [],
 }) => {
   const [activeVector, setActiveVector] = useState<'upload' | 'drive' | 'fcwa'>('upload');
   const [rawText, setRawText] = useState('');
@@ -166,6 +180,14 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
     breachSummary: string | null;
     createTimelineEvent: boolean;
     s60CCFactorRef: string;
+    // Communication productivity capture (independent of tone and of timing)
+    communicationProductivity?: CommunicationProductivity;
+    nonProductiveMarkers?: NonProductiveMarker[];
+    substantiveResponse?: boolean | null;
+    productivityRationale?: string;
+    // Per-child attribution
+    childrenMentioned?: ChildName[];
+    childImpacts?: ChildImpactRecord[];
   } | null>(null);
 
   if (!isOpen) return null;
@@ -380,8 +402,32 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
         breachedOrderNumber: breachedOrder,
         breachSeverity: (data.breachSeverity as any) || (hasBreach ? 'Severe' : null),
         breachSummary: data.breachSummary || (hasBreach ? `Observed non-compliance with ${breachedOrder}.` : null),
-        createTimelineEvent: hasBreach,
+        // Previously this was `hasBreach`, which meant non-breach documents
+        // were filed to the vault and never reached the chronology at all.
+        // Any dated, sourced record is chronology-worthy: compliance evidence
+        // is probative on s 60CC(2)(d) parental capacity just as breach
+        // evidence is. The operator can still untick it before saving.
+        createTimelineEvent: data.createTimelineEvent ?? true,
         s60CCFactorRef: data.s60CCFactorRef || (detectedCategory === 'Medical' ? 's60CC(2)(a) - Safety from neglect & medical harm' : 's60CC(2)(e) - Benefit of relationship with each parent'),
+        communicationProductivity:
+          (data.communicationProductivity as CommunicationProductivity) ||
+          classifyProductivity({
+            content: textPayload,
+            isReply: responseStatus === 'completed',
+          }).productivity,
+        nonProductiveMarkers:
+          (data.nonProductiveMarkers as NonProductiveMarker[]) ||
+          classifyProductivity({
+            content: textPayload,
+            isReply: responseStatus === 'completed',
+          }).markers,
+        substantiveResponse:
+          data.substantiveResponse !== undefined ? data.substantiveResponse : null,
+        productivityRationale: data.productivityRationale || '',
+        childrenMentioned:
+          (data.childrenMentioned as ChildName[]) ||
+          detectChildrenReferenced(`${textPayload} ${nameHint} ${data.summaryExcerpt || ''}`),
+        childImpacts: (data.childImpacts as ChildImpactRecord[]) || undefined,
       });
     } catch (err) {
       console.error('Failed to parse text with OCR:', err);
@@ -431,7 +477,13 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
       responseDate: '',
       daysOverdue: 0,
       responseStatus: 'waiting',
-      statutoryBasis: 'Order 9.1 (42-Hour Written Communication Mandate)',
+      statutoryBasis: 'Order 9 (42-Hour Written Communication Mandate)',
+      hasBreach: false,
+      breachedOrderNumber: null,
+      breachSeverity: null,
+      breachSummary: null,
+      createTimelineEvent: false,
+      s60CCFactorRef: 's60CC(2)(e) - Benefit of relationship with each parent',
     });
   };
 
@@ -472,7 +524,12 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
     e.preventDefault();
     if (!parsedMetadata) return;
 
-    const docId = `DOC-2024-${Date.now().toString().slice(-3)}`;
+    const nextNumber = (existingDocuments?.length || 0) + 1;
+    const docYear = (parsedMetadata.date && parsedMetadata.date.match(/^\d{4}/))
+      ? parsedMetadata.date.slice(0, 4)
+      : new Date().getFullYear().toString();
+    const docId = `DOC-${docYear}-${String(nextNumber).padStart(3, '0')}`;
+    const annexureNumber = `Annexure BJH-${nextNumber}`;
     const newDoc: DocumentRecord = {
       id: docId,
       title: parsedMetadata.title || 'Ingested Evidence Document',
@@ -480,7 +537,7 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
       date: parsedMetadata.date,
       sourceOrigin: parsedMetadata.sourceOrigin,
       evidentiaryWeight: parsedMetadata.evidentiaryWeight,
-      annexureNumber: `Annexure BJH-${Date.now().toString().slice(-2)}`,
+      annexureNumber,
       fileType: parsedMetadata.category === 'Legal/Court' ? 'court_order' : parsedMetadata.category === 'Medical' ? 'medical_report' : parsedMetadata.category === 'Education' ? 'school_record' : (ocrResult ? 'court_order' : 'pdf'),
       fileSize: ocrResult ? `${(Math.max(12, Math.round((rawText.length * 0.8) / 100)) / 10).toFixed(1)} KB (OCR)` : '1.2 MB',
       excerpt: parsedMetadata.excerpt || 'Verified legal evidence record.',
@@ -514,33 +571,90 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
         status: parsedMetadata.responseStatus,
         requestingParty: 'Benjamin Hawkins',
         respondingParty: 'Sue-Anne Hawkins',
-        statutoryBasis: parsedMetadata.statutoryBasis || 'Order 9.1 (42-Hour Written Communication Mandate)',
+        statutoryBasis: parsedMetadata.statutoryBasis || 'Order 9 (42-Hour Written Communication Mandate)',
         priority: parsedMetadata.daysOverdue > 3 ? 'Critical' : (parsedMetadata.daysOverdue > 0 ? 'High' : 'Routine'),
         sourceDocId: docId,
         sourceCitation: newDoc.annexureNumber,
         aiReviewRationale: `Determined from review of ingested evidence "${newDoc.title}".`,
+        // Substance is recorded alongside timeliness so a reply that arrived
+        // within the 42-hour window but answered nothing does not close the
+        // requirement as though it were compliant.
+        responseProductivity: parsedMetadata.communicationProductivity,
+        substantiveResponse:
+          parsedMetadata.substantiveResponse === null
+            ? undefined
+            : parsedMetadata.substantiveResponse,
+        nonProductiveMarkers: parsedMetadata.nonProductiveMarkers,
+        productivityRationale: parsedMetadata.productivityRationale,
+        childrenConcerned: parsedMetadata.childrenMentioned,
       };
       onResponseRequirementAdded(newReq);
     }
 
-    if (parsedMetadata.createTimelineEvent && parsedMetadata.hasBreach && onTimelineEventAdded) {
-      const newEvent: TimelineEvent = {
+    // Create the timeline event for ANY document flagged for the chronology,
+    // not only breaches. Non-breach events carry orderBreachFlag: false and
+    // remain probative on parental capacity under s 60CC(2)(d).
+    if (parsedMetadata.createTimelineEvent && onTimelineEventAdded) {
+      const isBreach = Boolean(parsedMetadata.hasBreach);
+
+      // Attribute only to children the document actually concerns. Blanket
+      // ['Isabella','Mason'] attribution made both child timelines identical.
+      const attributedChildren: ChildName[] =
+        parsedMetadata.childrenMentioned && parsedMetadata.childrenMentioned.length > 0
+          ? parsedMetadata.childrenMentioned
+          : detectChildrenReferenced(
+              `${parsedMetadata.title} ${parsedMetadata.excerpt} ${parsedMetadata.extractedFullText || ''}`
+            );
+
+      const baseEvent: TimelineEvent = {
         id: `EVT-${Date.now().toString().slice(-4)}`,
         date: parsedMetadata.date,
-        title: `Contravention: ${parsedMetadata.breachedOrderNumber || 'Court Order'}`,
-        description: parsedMetadata.breachSummary || parsedMetadata.excerpt,
+        title: isBreach
+          ? `Contravention: ${parsedMetadata.breachedOrderNumber || 'Court Order'}`
+          : parsedMetadata.title,
+        description:
+          (isBreach ? parsedMetadata.breachSummary : null) || parsedMetadata.excerpt,
         category: parsedMetadata.category,
         sourceOrigin: parsedMetadata.sourceOrigin || 'Primary Document',
         evidentiaryWeight: parsedMetadata.evidentiaryWeight,
         partiesInvolved: ['Benjamin Hawkins', 'Sue-Anne Hawkins'],
-        childrenMentioned: ['Isabella', 'Mason'],
+        childrenMentioned: attributedChildren,
         primaryDocId: docId,
         citation: `[${docId}] ${newDoc.annexureNumber}`,
-        orderBreachFlag: true,
-        breachedOrderNumber: parsedMetadata.breachedOrderNumber || 'Order 9.1',
-        breachSeverity: parsedMetadata.breachSeverity || 'Severe',
+        orderBreachFlag: isBreach,
+        breachedOrderNumber: isBreach
+          ? parsedMetadata.breachedOrderNumber || 'Order 9.1'
+          : undefined,
+        breachSeverity: isBreach ? parsedMetadata.breachSeverity || 'Severe' : undefined,
+        communicationProductivity: parsedMetadata.communicationProductivity,
+        nonProductiveMarkers: parsedMetadata.nonProductiveMarkers,
+        generatedBy: 'AI Ingestion',
+        generationRationale: isBreach
+          ? `Auto-generated at ingestion: document flagged as evidencing a contravention of ${parsedMetadata.breachedOrderNumber || 'a parenting order'}.`
+          : 'Auto-generated at ingestion: dated, sourced record added to the chronology as non-breach corroborating evidence.',
       };
-      onTimelineEventAdded(newEvent);
+
+      // File the event into each affected child's own timeline category.
+      const childCategory = inferChildCategory(baseEvent);
+      baseEvent.childImpacts =
+        parsedMetadata.childImpacts && parsedMetadata.childImpacts.length > 0
+          ? parsedMetadata.childImpacts
+          : attributedChildren.map(child => ({
+              child,
+              childCategory,
+              impactSummary: parsedMetadata.excerpt?.slice(0, 220) || parsedMetadata.title,
+              severity: isBreach
+                ? parsedMetadata.breachSeverity === 'Severe'
+                  ? 'Critical'
+                  : 'High'
+                : 'Informational',
+              s60CCFactorRef: parsedMetadata.s60CCFactorRef,
+              directlyEvidenced: new RegExp(`\\b${child}\\b`, 'i').test(
+                `${parsedMetadata.title} ${parsedMetadata.excerpt} ${parsedMetadata.extractedFullText || ''}`
+              ),
+            }));
+
+      onTimelineEventAdded(baseEvent);
     }
 
     onClose();

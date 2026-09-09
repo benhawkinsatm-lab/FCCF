@@ -4,8 +4,6 @@ import {
   ShieldCheck, 
   Scale, 
   FolderArchive, 
-  CheckCircle2, 
-  AlertCircle,
   Tag
 } from 'lucide-react';
 import { DocumentRecord } from '../../types';
@@ -27,7 +25,6 @@ export const DocumentStatsRibbon: React.FC<DocumentStatsRibbonProps> = ({
   const withAnnexures = documents.filter(d => d.annexureNumber).length;
   const swornCount = documents.filter(d => d.evidentiaryWeight === 'Sworn/Official').length;
   const thirdPartyCount = documents.filter(d => d.evidentiaryWeight === 'Third-Party Objective').length;
-  const unverifiedCount = documents.filter(d => d.evidentiaryWeight === 'Unverified Claim').length;
 
   const verifiedRate = total > 0 ? Math.round(((swornCount + thirdPartyCount) / total) * 100) : 0;
 

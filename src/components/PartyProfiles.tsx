@@ -13,17 +13,82 @@ import {
   ExternalLink,
   RefreshCw,
   Quote,
-  Scale,
   Brain,
   ChevronRight,
-  TrendingDown,
   Activity
 } from 'lucide-react';
-import { PartyProfile, DocumentRecord } from '../types';
+import {
+  PartyProfile,
+  DocumentRecord,
+  TimelineEvent,
+  CommunicationMessage,
+  ChildName,
+  CHILD_TIMELINE_CATEGORIES,
+} from '../types';
+import {
+  getChildTimeline,
+  getChildCategoryCounts,
+  getEmptyChildCategories,
+  CHILD_CATEGORY_STYLES,
+} from '../utils/childTimelineService';
+import { summariseProductivityForParty } from '../utils/communicationProductivity';
+
+/**
+ * Renders one themed block of a child's welfare record. Empty lists are shown
+ * as an explicit gap rather than hidden, because a silent field and a field
+ * with no evidence look identical to a reader otherwise — and only one of
+ * those is something to act on.
+ */
+const ChildSection: React.FC<{
+  title: string;
+  summary: string;
+  lists?: { label: string; items: string[] }[];
+  note?: string;
+}> = ({ title, summary, lists = [], note }) => (
+  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+      {title}
+    </span>
+
+    {summary && <p className="text-xs text-slate-600 leading-relaxed mb-2">{summary}</p>}
+
+    <div className="space-y-2">
+      {lists.map((list, idx) => (
+        <div key={idx}>
+          <span className="text-[10px] font-semibold text-slate-500 block mb-1">{list.label}</span>
+          {list.items.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {list.items.map((item, i) => (
+                <span
+                  key={i}
+                  className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[11px] text-slate-700"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span className="text-[11px] text-slate-400 italic">
+              None recorded — evidentiary gap
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+
+    {note && (
+      <p className="text-[11px] text-slate-600 mt-2 pt-2 border-t border-slate-200 leading-relaxed">
+        {note}
+      </p>
+    )}
+  </div>
+);
 
 interface PartyProfilesProps {
   profiles: PartyProfile[];
   documents: DocumentRecord[];
+  timeline: TimelineEvent[];
+  communicationMessages: CommunicationMessage[];
   onUpdateProfiles: (updated: PartyProfile[]) => void;
   onViewDocument: (doc: DocumentRecord) => void;
   onNavigateToAffidavit: () => void;
@@ -33,6 +98,8 @@ interface PartyProfilesProps {
 export const PartyProfiles: React.FC<PartyProfilesProps> = ({
   profiles,
   documents,
+  timeline,
+  communicationMessages,
   onUpdateProfiles,
   onViewDocument,
   onNavigateToAffidavit,
@@ -43,6 +110,26 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
   const [reviewSuccessMsg, setReviewSuccessMsg] = useState<string | null>(null);
 
   const activeProfile = profiles.find(p => p.id === selectedPartyId) || profiles[0];
+
+  // Child profiles carry a different shape entirely — parent-oriented blocks
+  // (parenting capacity, order compliance) do not apply to a subject child.
+  const childDetail = activeProfile?.childDetail;
+  const activeChildName = childDetail?.childName as ChildName | undefined;
+
+  const childTimeline = activeChildName ? getChildTimeline(timeline, activeChildName) : [];
+  const childCategoryCounts = activeChildName
+    ? getChildCategoryCounts(timeline, activeChildName)
+    : {};
+  const childEmptyCategories = activeChildName
+    ? getEmptyChildCategories(timeline, activeChildName)
+    : [];
+
+  // Live productivity metrics, used when the profile has no stored pattern yet.
+  const liveProductivity =
+    activeProfile && !childDetail
+      ? summariseProductivityForParty(communicationMessages, activeProfile.partyName)
+      : null;
+  const productivityPattern = activeProfile?.communicationProductivityPattern || liveProductivity;
 
   const handleRunAiReview = async () => {
     setIsAiReviewing(true);
@@ -61,7 +148,34 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
             date: d.date,
             weight: d.evidentiaryWeight,
             excerpt: d.excerpt
-          }))
+          })),
+          // Communications drive both tone AND productivity findings.
+          communications: communicationMessages.slice(0, 30).map(m => ({
+            id: m.id,
+            timestamp: m.timestamp,
+            sender: m.sender,
+            channel: m.channel,
+            tone: m.tone,
+            lagHours: m.lagHours,
+            breach42h: m.breachOf42HourMandate,
+            isReply: Boolean(m.responseToId),
+            content: (m.content || '').slice(0, 400),
+          })),
+          // Timeline drives per-child attribution.
+          timeline: timeline.slice(0, 30).map(e => ({
+            id: e.id,
+            date: e.date,
+            title: e.title,
+            category: e.category,
+            children: e.childrenMentioned,
+            childImpacts: e.childImpacts,
+            breach: e.orderBreachFlag,
+          })),
+          // Empty categories tell the model where a child's record is silent.
+          childCategoryCounts: {
+            Isabella: getChildCategoryCounts(timeline, 'Isabella'),
+            Mason: getChildCategoryCounts(timeline, 'Mason'),
+          },
         })
       });
 
@@ -85,14 +199,41 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
     }
   };
 
+  /**
+   * Local review pass used when the AI endpoint is unavailable. It still does
+   * real work: productivity metrics and per-child timeline counts are computed
+   * deterministically from the store rather than merely bumping a timestamp.
+   */
   const simulateLocalUpdate = () => {
     const nowStamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
-    const updated = profiles.map(p => ({
-      ...p,
-      lastAiReviewTimestamp: nowStamp
-    }));
+
+    const updated = profiles.map(p => {
+      if (p.childDetail) {
+        const name = p.childDetail.childName;
+        return {
+          ...p,
+          childDetail: {
+            ...p.childDetail,
+            timelineCategoryCounts: getChildCategoryCounts(timeline, name),
+          },
+          lastAiReviewTimestamp: nowStamp,
+        };
+      }
+
+      return {
+        ...p,
+        communicationProductivityPattern: summariseProductivityForParty(
+          communicationMessages,
+          p.partyName
+        ),
+        lastAiReviewTimestamp: nowStamp,
+      };
+    });
+
     onUpdateProfiles(updated);
-    setReviewSuccessMsg(`AI analyzed all ${documents.length} knowledge base records. Party profiles, communication patterns, and behavioral risk factors updated.`);
+    setReviewSuccessMsg(
+      `Local review complete across ${documents.length} documents, ${communicationMessages.length} communications and ${timeline.length} timeline events. Communication productivity metrics and per-child timeline categories recomputed for all ${profiles.length} profiles.`
+    );
   };
 
   const getRoleBadge = (role: PartyProfile['role']) => {
@@ -178,6 +319,11 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
         <div className="flex flex-wrap gap-2 mt-5 border-t border-slate-100 pt-4">
           {profiles.map(profile => {
             const isSelected = profile.id === selectedPartyId;
+            const isChild = Boolean(profile.childDetail);
+            const childEventCount = isChild
+              ? getChildTimeline(timeline, profile.childDetail!.childName).length
+              : 0;
+
             return (
               <button
                 key={profile.id}
@@ -186,16 +332,36 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
                   isSelected
                     ? 'bg-slate-900 text-white shadow-xs'
+                    : isChild
+                    ? 'bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                <User className="w-3.5 h-3.5" />
+                {isChild ? <HeartHandshake className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
                 <span className="font-semibold">{profile.partyName}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-sm border ${
                   isSelected ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-white text-slate-600 border-slate-200'
                 }`}>
-                  {profile.role.split(' ')[0]}
+                  {isChild ? 'Child' : profile.role.split(' ')[0]}
                 </span>
+                {isChild && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                      childEventCount === 0
+                        ? 'bg-rose-500 text-white'
+                        : isSelected
+                        ? 'bg-slate-700 text-slate-200'
+                        : 'bg-emerald-200 text-emerald-900'
+                    }`}
+                    title={
+                      childEventCount === 0
+                        ? 'No timeline events attributed to this child'
+                        : `${childEventCount} timeline entries on this child's own timeline`
+                    }
+                  >
+                    {childEventCount}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -235,7 +401,34 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 </div>
               </div>
 
-              {/* Quick Metrics Bar */}
+              {/* Quick Metrics Bar — child variant */}
+              {childDetail && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 mt-4 text-xs">
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">School</span>
+                    <span className="font-bold text-slate-900">{childDetail.school || 'Not recorded'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Own Timeline Entries</span>
+                    <span className="font-bold text-slate-900">{childTimeline.length}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Categories Covered</span>
+                    <span className={`font-bold ${childEmptyCategories.length > 4 ? 'text-rose-700' : 'text-slate-900'}`}>
+                      {CHILD_TIMELINE_CATEGORIES.length - childEmptyCategories.length} / {CHILD_TIMELINE_CATEGORIES.length}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Views Recorded (s 60CC(2)(b))</span>
+                    <span className={`font-bold ${childDetail.viewsExpressed.recordedViews.length === 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                      {childDetail.viewsExpressed.recordedViews.length || 'None'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Metrics Bar — parent variant */}
+              {!childDetail && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 mt-4 text-xs">
                 <div>
                   <span className="text-slate-500 block text-[11px]">Compliance Status</span>
@@ -270,9 +463,11 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                   </span>
                 </div>
               </div>
+              )}
             </div>
 
-            {/* Behaviour & Conduct Section */}
+            {/* Behaviour & Conduct Section — parents only */}
+            {!childDetail && (
             <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Brain className="w-4 h-4 text-indigo-600" />
@@ -315,8 +510,10 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Communication Tone Pattern & Verbatim Evidence */}
+            {/* Communication Tone Pattern & Verbatim Evidence — parents only */}
+            {!childDetail && (
             <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -359,6 +556,294 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 </div>
               )}
             </div>
+            )}
+
+            {/* Communication Productivity — parents only. Separate axis from
+                tone: substance, not manner, and not the 42-hour clock. */}
+            {!childDetail && productivityPattern && (
+              <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-rose-600" />
+                    <h3 className="font-bold text-sm text-slate-900">
+                      Communication Productivity (Substance)
+                    </h3>
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    Non-Productive:{' '}
+                    <strong className="text-rose-700">{productivityPattern.nonProductiveRate}</strong>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs mb-4">
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <span className="text-[10px] uppercase font-bold text-emerald-700 block">Productive</span>
+                    <span className="text-lg font-bold text-emerald-800">{productivityPattern.productiveCount}</span>
+                  </div>
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                    <span className="text-[10px] uppercase font-bold text-amber-700 block">Partial</span>
+                    <span className="text-lg font-bold text-amber-800">{productivityPattern.partiallyProductiveCount}</span>
+                  </div>
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg">
+                    <span className="text-[10px] uppercase font-bold text-rose-700 block">Non-Productive</span>
+                    <span className="text-lg font-bold text-rose-800">{productivityPattern.nonProductiveCount}</span>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                    <span className="text-[10px] uppercase font-bold text-slate-600 block">Substantive Replies</span>
+                    <span className="text-lg font-bold text-slate-900">{productivityPattern.substantiveResponseRate}</span>
+                  </div>
+                </div>
+
+                {productivityPattern.dominantNonProductiveMarkers.length > 0 && (
+                  <div className="mb-3">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5">
+                      Dominant Non-Productive Markers
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {productivityPattern.dominantNonProductiveMarkers.map((mk, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-[11px] text-rose-800 font-medium"
+                        >
+                          {mk}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-slate-600 leading-relaxed p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                  {productivityPattern.assessmentNote}
+                </p>
+
+                {productivityPattern.nonProductiveExamples.length > 0 && (
+                  <div className="space-y-2 mt-3">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                      Non-Productive Verbatim Examples
+                    </span>
+                    {productivityPattern.nonProductiveExamples.map((ex, idx) => (
+                      <div key={idx} className="p-3 bg-rose-50/60 border border-rose-200 rounded-lg text-xs space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-semibold text-rose-800">{ex.context}</span>
+                          <span className="font-mono text-rose-600">{ex.date}</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <Quote className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                          <p className="italic text-slate-800 text-xs">"{ex.excerpt}"</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ══════════ CHILD PANELS ══════════ */}
+            {childDetail && (
+              <>
+                {/* Health, education, emotional, development */}
+                <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-indigo-600" />
+                    <h3 className="font-bold text-sm text-slate-900">
+                      {childDetail.childName}'s Developmental &amp; Welfare Record
+                    </h3>
+                  </div>
+
+                  <ChildSection
+                    title="Health & Medical"
+                    summary={childDetail.healthAndMedical.summary}
+                    lists={[
+                      { label: 'Conditions', items: childDetail.healthAndMedical.conditions },
+                      { label: 'Treating Providers', items: childDetail.healthAndMedical.treatingProviders },
+                    ]}
+                    note={childDetail.healthAndMedical.complianceNotes}
+                  />
+
+                  <ChildSection
+                    title="Education & Schooling"
+                    summary={childDetail.educationAndSchooling.summary}
+                    lists={[{ label: 'Support Needs', items: childDetail.educationAndSchooling.supportNeeds }]}
+                    note={childDetail.educationAndSchooling.attendanceNotes}
+                  />
+
+                  <ChildSection
+                    title="Emotional & Psychological"
+                    summary={childDetail.emotionalAndPsychological.summary}
+                    lists={[
+                      { label: 'Observed Indicators', items: childDetail.emotionalAndPsychological.observedIndicators },
+                    ]}
+                    note={childDetail.emotionalAndPsychological.exposureToConflictNotes}
+                  />
+
+                  <ChildSection
+                    title="Extracurricular & Social"
+                    summary={childDetail.extracurricularAndSocial.summary}
+                    lists={[{ label: 'Activities', items: childDetail.extracurricularAndSocial.activities }]}
+                  />
+
+                  {childDetail.developmentalNeeds.length > 0 && (
+                    <ChildSection
+                      title="Developmental Needs"
+                      summary=""
+                      lists={[{ label: 'Identified Needs', items: childDetail.developmentalNeeds }]}
+                    />
+                  )}
+                </div>
+
+                {/* Views expressed — s 60CC(2)(b) */}
+                <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-indigo-600" />
+                      <h3 className="font-bold text-sm text-slate-900">
+                        Views Expressed by {childDetail.childName}
+                      </h3>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-mono">s 60CC(2)(b)</span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                    {childDetail.viewsExpressed.summary}
+                  </p>
+
+                  {childDetail.viewsExpressed.recordedViews.length > 0 ? (
+                    <div className="space-y-2">
+                      {childDetail.viewsExpressed.recordedViews.map((v, idx) => (
+                        <div key={idx} className="p-3 bg-indigo-50/60 border border-indigo-200 rounded-lg text-xs space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-semibold text-indigo-800">{v.context}</span>
+                            <span className="font-mono text-indigo-600">{v.date}</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <Quote className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                            <p className="italic text-slate-800">"{v.excerpt}"</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <span>
+                        No views on file. The Court must consider any views expressed by{' '}
+                        {childDetail.childName}. Views are typically captured through a family
+                        report, an ICL interview, or a school counsellor note — none of which are
+                        currently in the vault.
+                      </span>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-100">
+                    {childDetail.viewsExpressed.weightConsiderations}
+                  </p>
+                </div>
+
+                {/* This child's own timeline, by their own categories */}
+                <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-indigo-600" />
+                      <h3 className="font-bold text-sm text-slate-900">
+                        {childDetail.childName}'s Timeline by Category
+                      </h3>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      {childTimeline.length} entr{childTimeline.length === 1 ? 'y' : 'ies'}
+                    </span>
+                  </div>
+
+                  {/* Category coverage grid */}
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {CHILD_TIMELINE_CATEGORIES.map(cat => {
+                      const count = childCategoryCounts[cat] || 0;
+                      return (
+                        <span
+                          key={cat}
+                          className={`text-[11px] px-2 py-0.5 rounded border font-medium ${
+                            count
+                              ? CHILD_CATEGORY_STYLES[cat]
+                              : 'bg-slate-50 text-slate-400 border-slate-200'
+                          }`}
+                          title={count ? `${count} entries` : 'No entries recorded — evidentiary gap'}
+                        >
+                          {cat} {count ? `· ${count}` : '· 0'}
+                        </span>
+                      );
+                    })}
+                  </div>
+
+                  {childEmptyCategories.length > 0 && (
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900 mb-3 flex items-start gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                      <span>
+                        <strong>{childEmptyCategories.length}</strong> of{' '}
+                        {CHILD_TIMELINE_CATEGORIES.length} categories hold no entries for{' '}
+                        {childDetail.childName}: {childEmptyCategories.join(', ')}. Any submission
+                        specific to these areas is presently unsupported.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Entries */}
+                  {childTimeline.length > 0 ? (
+                    <div className="space-y-2">
+                      {childTimeline.slice(0, 20).map(({ event, impact }, idx) => {
+                        const sourceDoc = documents.find(d => d.id === event.primaryDocId);
+                        return (
+                          <div
+                            key={`${event.id}-${idx}`}
+                            className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-[11px] font-bold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                  {event.date}
+                                </span>
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
+                                    CHILD_CATEGORY_STYLES[impact.childCategory]
+                                  }`}
+                                >
+                                  {impact.childCategory}
+                                </span>
+                                {!impact.directlyEvidenced && (
+                                  <span
+                                    className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 border border-slate-300"
+                                    title={`${childDetail.childName} was not named directly in the source — attribution inferred from a general reference to the children.`}
+                                  >
+                                    Inferred attribution
+                                  </span>
+                                )}
+                              </div>
+                              {sourceDoc && (
+                                <button
+                                  onClick={() => onViewDocument(sourceDoc)}
+                                  className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
+                                >
+                                  <span>{sourceDoc.annexureNumber || sourceDoc.id}</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                            <div className="font-semibold text-slate-900">{event.title}</div>
+                            <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                              {impact.impactSummary}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+                      No timeline entries are attributed to {childDetail.childName}. Events reach a
+                      child's timeline only when the source document names that child, so a document
+                      referring generally to "the children" may not have been attributed here.
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Right Column: Concerns, Parenting Capacity, & Evidentiary Citations */}
@@ -412,7 +897,41 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
               </div>
             </div>
 
-            {/* Parenting Capacity Assessment */}
+            {/* Child safety & risk — child profiles only */}
+            {childDetail && (
+              <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <ShieldAlert className="w-4 h-4 text-rose-600" />
+                  <h3 className="font-bold text-sm text-slate-900">
+                    Safety &amp; Risk — {childDetail.childName}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {childDetail.safetyAndRiskNotes || 'No safety or risk findings recorded from the vault.'}
+                </p>
+
+                {childDetail.s60CCFactorLinks.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-slate-100">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                      Linked Statutory Factors
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {childDetail.s60CCFactorLinks.map((f, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[11px] text-slate-700 font-mono"
+                        >
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Parenting Capacity Assessment — parents only */}
+            {!childDetail && (
             <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <HeartHandshake className="w-4 h-4 text-emerald-600" />
@@ -434,6 +953,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 </div>
               </div>
             </div>
+            )}
 
             {/* Evidentiary References in Vault */}
             <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5">

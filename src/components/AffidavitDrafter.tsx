@@ -6,9 +6,7 @@ import {
   Check, 
   Printer, 
   ExternalLink, 
-  Scale, 
-  RefreshCw,
-  Download
+  RefreshCw
 } from 'lucide-react';
 import { TimelineEvent, DocumentRecord } from '../types';
 import { FCWA_TEMPLATES } from '../data/caseData';
@@ -48,7 +46,9 @@ export const AffidavitDrafter: React.FC<AffidavitDrafterProps> = ({
         body: JSON.stringify({
           selectedEventIds,
           topic,
-          specificRequests: 'Focus on changeover denial on 12 April 2024, 126-hour delayed orthodontic response, and concealed asthma admission.',
+          specificRequests: selectedEventIds.length > 0
+            ? `Focus on the ${selectedEventIds.length} selected chronological timeline exhibits and contemporaneous evidence regarding "${topic}".`
+            : `Focus on contemporaneous exhibits, verified communication logs, and compliance records regarding "${topic}".`,
         }),
       });
       const data = await res.json();
@@ -67,7 +67,7 @@ export const AffidavitDrafter: React.FC<AffidavitDrafterProps> = ({
       if (p.heading) fullText += `\n${p.heading}\n`;
       fullText += `${p.num}. ${p.text}\n`;
     });
-    fullText += `\nSWORN at Perth in the State of Western Australia this _____ day of ____________ 2024.\nBefore me: __________________________ (Justice of the Peace / Australian Legal Practitioner)`;
+    fullText += `\nSWORN at Perth in the State of Western Australia this _____ day of ____________ ${new Date().getFullYear()}.\nBefore me: __________________________ (Justice of the Peace / Australian Legal Practitioner)`;
     
     navigator.clipboard.writeText(fullText);
     setCopied(true);
@@ -307,7 +307,7 @@ export const AffidavitDrafter: React.FC<AffidavitDrafterProps> = ({
           <div className="pt-6 border-t-2 border-slate-800 grid grid-cols-2 gap-8 text-xs font-serif text-slate-800">
             <div className="space-y-4">
               <p>
-                SWORN by the Deponent Benjamin James Hawkins at Perth in the State of Western Australia this _____ day of ___________________ 2024.
+                SWORN by the Deponent Benjamin James Hawkins at Perth in the State of Western Australia this _____ day of ___________________ {new Date().getFullYear()}.
               </p>
               <div className="pt-8 border-b border-slate-400 w-48"></div>
               <span className="text-[11px] text-slate-500">Signature of Deponent (Benjamin Hawkins)</span>

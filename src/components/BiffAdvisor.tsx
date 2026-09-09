@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Mail, 
   Sparkles, 
@@ -6,18 +6,35 @@ import {
   Check, 
   AlertCircle, 
   ShieldCheck, 
-  FileText, 
   Scale, 
-  Send,
-  RefreshCw,
-  Clock,
-  ThumbsUp
+  RefreshCw
 } from 'lucide-react';
 import { BiffAdviceResult } from '../types';
 
-export const BiffAdvisor: React.FC = () => {
-  const [draftText, setDraftText] = useState("");
-  const [context, setContext] = useState("");
+export interface BiffAdvisorProps {
+  initialContext?: string;
+  initialDraft?: string;
+}
+
+export const BiffAdvisor: React.FC<BiffAdvisorProps> = ({
+  initialContext = '',
+  initialDraft = '',
+}) => {
+  const [draftText, setDraftText] = useState(initialDraft);
+  const [context, setContext] = useState(initialContext);
+
+  useEffect(() => {
+    if (initialContext) {
+      setContext(initialContext);
+    }
+  }, [initialContext]);
+
+  useEffect(() => {
+    if (initialDraft) {
+      setDraftText(initialDraft);
+    }
+  }, [initialDraft]);
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<BiffAdviceResult | null>(null);
   const [copiedBiff, setCopiedBiff] = useState(false);

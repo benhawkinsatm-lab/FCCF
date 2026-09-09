@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, FileText, Calendar, ShieldCheck, Scale, ExternalLink, Copy, Check, Tag, Trash2 } from 'lucide-react';
+import { X, ShieldCheck, Scale, Copy, Check, Tag, Trash2 } from 'lucide-react';
 import { DocumentRecord } from '../types';
 
 interface DocumentDetailModalProps {

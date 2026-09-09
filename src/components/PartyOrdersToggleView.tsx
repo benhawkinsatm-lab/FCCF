@@ -1,29 +1,23 @@
 import React, { useState } from 'react';
 import { 
-  Scale, 
   Sparkles, 
   RefreshCw, 
   CheckSquare, 
   Square, 
   CheckCircle2, 
-  AlertTriangle, 
   FileText, 
   Copy, 
   Check, 
   Plus, 
   ChevronDown, 
   ChevronUp, 
-  History, 
   UserX, 
-  ShieldCheck,
   Zap,
   UserCheck,
   Search,
-  ShieldAlert,
-  SlidersHorizontal,
-  ExternalLink
+  SlidersHorizontal
 } from 'lucide-react';
-import { ProposedParentingOrder, CourtCriterion, DocumentRecord, EvidenceCitation } from '../types';
+import { ProposedParentingOrder, ProposedOrderAssessment, CourtCriterion, DocumentRecord, EvidenceCitation } from '../types';
 import { OrderAssessmentOutput } from './OrderAssessmentOutput';
 
 export type PartyViewMode = 'mine' | 'sue-anne';
@@ -62,7 +56,6 @@ export const PartyOrdersToggleView: React.FC<PartyOrdersToggleViewProps> = ({
 
   const currentPartyOrders = activeParty === 'mine' ? myOrders : sueAnneOrders;
   const currentPartyName = activeParty === 'mine' ? 'Benjamin Hawkins' : 'Sue-Anne Hawkins';
-  const currentPartyRole = activeParty === 'mine' ? 'Applicant (Father)' : 'Respondent (Mother)';
   const currentPartyDisplayLabel = activeParty === 'mine' ? 'My Proposed Orders' : "Sue-Anne's Proposed Orders";
 
   // Filter by category and search
@@ -221,7 +214,7 @@ export const PartyOrdersToggleView: React.FC<PartyOrdersToggleViewProps> = ({
             docId: doc.id,
             exhibitNumber: doc.annexureNumber || 'EX-1',
             title: doc.title,
-            relevance: `Correlated evidentiary record under statutory consideration ${doc.statutoryFactor || 'FLA s 60CC'}.`
+            relevance: `Correlated evidentiary record under statutory consideration ${doc.metadata?.s60CCFactorRef || doc.metadata?.statutoryBasis || 'FLA s 60CC'}.`
           }))
         : [];
 
@@ -229,17 +222,17 @@ export const PartyOrdersToggleView: React.FC<PartyOrdersToggleViewProps> = ({
         ...order,
         assessment: {
           assessedAt: nowStamp,
-          riskLevel: isSueAnne ? 'Critical' : 'Low',
+          riskLevel: (isSueAnne ? 'Critical' : 'Low') as ProposedOrderAssessment['riskLevel'],
           evidenceCitations: citations,
           statutoryFactorsReferenced: ['s 60CC(2)(a)', 's 60CC(2)(c)', 's 60CC(3)(d)'],
-          overallFeasibility: isSueAnne ? 'High Risk of Breach' : 'Strong Court Prospect',
+          overallFeasibility: (isSueAnne ? 'High Risk of Breach' : 'Strong Court Prospect') as ProposedOrderAssessment['overallFeasibility'],
           courtCriteriaCheck: [
             {
               criterionId: 's60CC-2a',
               statutoryRef: 's 60CC(2)(a) - Safety from medical harm, neglect & concealment',
-              alignmentAnalysis: isSueAnne
-                ? 'Respondent\'s proposed order assessed against s 60CC(2)(a) safety, notification, and disclosure criteria.'
-                : 'Directly rectifies safety concerns by establishing clear, self-executing medical authorities and mandatory specialist compliance.',
+              alignmentAnalysis: isSueAnne 
+                ? 'Order fails to mandate independent medical oversight; high risk of unilateral decisions.'
+                : 'Safeguards child health via accredited third-party specialists and transparent notices.',
               passesBestInterests: !isSueAnne
             },
             {
@@ -267,7 +260,7 @@ export const PartyOrdersToggleView: React.FC<PartyOrdersToggleViewProps> = ({
             behaviorPattern: isSueAnne
               ? 'Potential communication latency and unilateral decision-making risk.'
               : 'Consistent adherence to formal notices and court timetables.',
-            riskOfBreach: isSueAnne ? 'High' : 'Low',
+            riskOfBreach: (isSueAnne ? 'High' : 'Low') as 'High' | 'Low',
             rationale: isSueAnne
               ? 'Risk of compliance friction unless drafting specifies self-executing defaults.'
               : 'Clear and actionable drafting promotes long-term settlement stability.'

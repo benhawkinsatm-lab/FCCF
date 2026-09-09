@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { 
   INITIAL_DOCUMENTS, 
   INITIAL_TIMELINE_EVENTS, 
@@ -27,28 +27,34 @@ import {
 } from './types';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { DashboardOverview } from './components/DashboardOverview';
-import { PartyProfiles } from './components/PartyProfiles';
-import { IssuesConcerns } from './components/IssuesConcerns';
-import { CourtCriteria } from './components/CourtCriteria';
-import { ProposedOrders } from './components/ProposedOrders';
-import { TimelineLedger } from './components/TimelineLedger';
-import { BreachTimeline } from './components/BreachTimeline';
-import { DiscrepancyEngine } from './components/DiscrepancyEngine';
-import { ComplianceMatrix } from './components/ComplianceMatrix';
-import { ResponseTracker } from './components/ResponseTracker';
-import { BiffAdvisor } from './components/BiffAdvisor';
-import { MediationSimulator } from './components/MediationSimulator';
-import { AffidavitDrafter } from './components/AffidavitDrafter';
-import { IntelligentChatbot } from './components/IntelligentChatbot';
-import { GoogleDriveVault } from './components/GoogleDriveVault';
-import { KnowledgeGapAnalyzer } from './components/KnowledgeGapAnalyzer';
-import { CommunicationAnalytics } from './components/CommunicationAnalytics';
-import { EvidenceBinder } from './components/EvidenceBinder';
-import { DocumentLibrary } from './components/DocumentLibrary';
-import { DocumentDetailModal } from './components/DocumentDetailModal';
-import { DocumentIngestionModal } from './components/DocumentIngestionModal';
-import { SelfHostedStorageModal } from './components/SelfHostedStorageModal';
-import { DeleteDocumentWarningModal } from './components/document-library/DeleteDocumentWarningModal';
+import { FloatingCaseAssistant } from './components/FloatingCaseAssistant';
+
+// Lazy-loaded tab components for on-demand code splitting
+const PartyProfiles = lazy(() => import('./components/PartyProfiles').then(m => ({ default: m.PartyProfiles })));
+const IssuesConcerns = lazy(() => import('./components/IssuesConcerns').then(m => ({ default: m.IssuesConcerns })));
+const CourtCriteria = lazy(() => import('./components/CourtCriteria').then(m => ({ default: m.CourtCriteria })));
+const ProposedOrders = lazy(() => import('./components/ProposedOrders').then(m => ({ default: m.ProposedOrders })));
+const TimelineLedger = lazy(() => import('./components/TimelineLedger').then(m => ({ default: m.TimelineLedger })));
+const BreachTimeline = lazy(() => import('./components/BreachTimeline').then(m => ({ default: m.BreachTimeline })));
+const DiscrepancyEngine = lazy(() => import('./components/DiscrepancyEngine').then(m => ({ default: m.DiscrepancyEngine })));
+const ComplianceMatrix = lazy(() => import('./components/ComplianceMatrix').then(m => ({ default: m.ComplianceMatrix })));
+const ResponseTracker = lazy(() => import('./components/ResponseTracker').then(m => ({ default: m.ResponseTracker })));
+const BiffAdvisor = lazy(() => import('./components/BiffAdvisor').then(m => ({ default: m.BiffAdvisor })));
+const MediationSimulator = lazy(() => import('./components/MediationSimulator').then(m => ({ default: m.MediationSimulator })));
+const AffidavitDrafter = lazy(() => import('./components/AffidavitDrafter').then(m => ({ default: m.AffidavitDrafter })));
+const IntelligentChatbot = lazy(() => import('./components/IntelligentChatbot').then(m => ({ default: m.IntelligentChatbot })));
+const GoogleDriveVault = lazy(() => import('./components/GoogleDriveVault').then(m => ({ default: m.GoogleDriveVault })));
+const KnowledgeGapAnalyzer = lazy(() => import('./components/KnowledgeGapAnalyzer').then(m => ({ default: m.KnowledgeGapAnalyzer })));
+const CommunicationAnalytics = lazy(() => import('./components/CommunicationAnalytics').then(m => ({ default: m.CommunicationAnalytics })));
+const EvidenceBinder = lazy(() => import('./components/EvidenceBinder').then(m => ({ default: m.EvidenceBinder })));
+const DocumentLibrary = lazy(() => import('./components/DocumentLibrary').then(m => ({ default: m.DocumentLibrary })));
+
+// Lazy-loaded modal dialogs
+const DocumentDetailModal = lazy(() => import('./components/DocumentDetailModal').then(m => ({ default: m.DocumentDetailModal })));
+const DocumentIngestionModal = lazy(() => import('./components/DocumentIngestionModal').then(m => ({ default: m.DocumentIngestionModal })));
+const SelfHostedStorageModal = lazy(() => import('./components/SelfHostedStorageModal').then(m => ({ default: m.SelfHostedStorageModal })));
+const DeleteDocumentWarningModal = lazy(() => import('./components/document-library/DeleteDocumentWarningModal').then(m => ({ default: m.DeleteDocumentWarningModal })));
+import { ensureAssessments } from './utils/communicationProductivity';
 import { UndoDeletionToast } from './components/document-library/UndoDeletionToast';
 import {
   inspectDocumentDependencies,
@@ -57,12 +63,32 @@ import {
   DocumentDependencyDetail,
   DeletionUndoSnapshot
 } from './utils/documentDependencyService';
-import { Trash2, X, CheckCircle2, RotateCcw } from 'lucide-react';
+import { X, CheckCircle2 } from 'lucide-react';
 import {
   CaseDataStore,
   fetchSelfHostedState,
   saveSelfHostedState,
 } from './services/selfHostedStorage';
+
+function TabLoadingSkeleton() {
+  return (
+    <div className="w-full space-y-6 animate-pulse py-6" role="status" aria-label="Loading tab view">
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <div className="h-6 bg-slate-200 rounded-lg w-56" />
+          <div className="h-3.5 bg-slate-200 rounded w-80" />
+        </div>
+        <div className="h-9 bg-slate-200 rounded-lg w-28" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <div className="h-24 bg-slate-200/80 rounded-xl" />
+        <div className="h-24 bg-slate-200/80 rounded-xl" />
+        <div className="h-24 bg-slate-200/80 rounded-xl" />
+      </div>
+      <div className="h-80 bg-slate-200/70 rounded-2xl mt-4" />
+    </div>
+  );
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -88,6 +114,7 @@ export default function App() {
   const [selectedDocument, setSelectedDocument] = useState<DocumentRecord | null>(null);
   const [isIngestionOpen, setIsIngestionOpen] = useState<boolean>(false);
   const [chatInitialQuery, setChatInitialQuery] = useState<string>('');
+  const [biffInitialContext, setBiffInitialContext] = useState<string>('');
   const [binderPreselectedIds, setBinderPreselectedIds] = useState<string[] | undefined>(undefined);
 
   // Document Deletion & Cascade Warning States
@@ -112,7 +139,9 @@ export default function App() {
           if (Array.isArray(d.orders)) setOrders(d.orders);
           if (Array.isArray(d.discrepancies)) setDiscrepancies(d.discrepancies);
           if (Array.isArray(d.knowledgeGaps)) setKnowledgeGaps(d.knowledgeGaps);
-          if (Array.isArray(d.communicationMessages)) setCommunicationMessages(d.communicationMessages);
+          // Backfill productivity assessments so every restored message
+          // carries a non-productive classification, not just new ones.
+          if (Array.isArray(d.communicationMessages)) setCommunicationMessages(ensureAssessments(d.communicationMessages));
           if (Array.isArray(d.responseRequirements)) setResponseRequirements(d.responseRequirements);
           if (Array.isArray(d.partyProfiles)) setPartyProfiles(d.partyProfiles);
           if (Array.isArray(d.issuesConcerns)) setIssuesConcerns(d.issuesConcerns);
@@ -232,7 +261,7 @@ export default function App() {
     if (Array.isArray(newStore.orders)) setOrders(newStore.orders);
     if (Array.isArray(newStore.discrepancies)) setDiscrepancies(newStore.discrepancies);
     if (Array.isArray(newStore.knowledgeGaps)) setKnowledgeGaps(newStore.knowledgeGaps);
-    if (Array.isArray(newStore.communicationMessages)) setCommunicationMessages(newStore.communicationMessages);
+    if (Array.isArray(newStore.communicationMessages)) setCommunicationMessages(ensureAssessments(newStore.communicationMessages));
     if (Array.isArray(newStore.responseRequirements)) setResponseRequirements(newStore.responseRequirements);
     if (Array.isArray(newStore.partyProfiles)) setPartyProfiles(newStore.partyProfiles);
     if (Array.isArray(newStore.issuesConcerns)) setIssuesConcerns(newStore.issuesConcerns);
@@ -444,10 +473,13 @@ export default function App() {
           />
         )}
 
+        <Suspense fallback={<TabLoadingSkeleton />}>
         {activeTab === 'profiles' && (
           <PartyProfiles
             profiles={partyProfiles}
             documents={documents}
+            timeline={timeline}
+            communicationMessages={communicationMessages}
             onUpdateProfiles={setPartyProfiles}
             onViewDocument={(doc) => setSelectedDocument(doc)}
             onNavigateToAffidavit={() => setActiveTab('affidavit')}
@@ -539,6 +571,9 @@ export default function App() {
             onUpdateRequirements={setResponseRequirements}
             onViewDocument={(doc) => setSelectedDocument(doc)}
             onNavigateToBiff={(initialTopic) => {
+              if (initialTopic) {
+                setBiffInitialContext(initialTopic);
+              }
               setActiveTab('biff');
             }}
             onNavigateToAffidavit={() => setActiveTab('affidavit')}
@@ -547,7 +582,7 @@ export default function App() {
         )}
 
         {activeTab === 'biff' && (
-          <BiffAdvisor />
+          <BiffAdvisor initialContext={biffInitialContext} />
         )}
 
         {activeTab === 'mediation' && (
@@ -624,24 +659,50 @@ export default function App() {
             onDeleteDocuments={handleRequestDeleteDocuments}
           />
         )}
+        </Suspense>
       </main>
 
       {/* Global Modals */}
-      <DocumentDetailModal
-        document={selectedDocument}
-        onClose={() => setSelectedDocument(null)}
-        onDelete={(doc) => handleRequestDeleteDocuments([doc])}
-      />
+      <Suspense fallback={null}>
+        {selectedDocument && (
+          <DocumentDetailModal
+            document={selectedDocument}
+            onClose={() => setSelectedDocument(null)}
+            onDelete={(doc) => handleRequestDeleteDocuments([doc])}
+          />
+        )}
 
-      {/* Delete Document Cascade Warning & Confirmation Modal */}
-      {deletionDependencies && deletionDependencies.length > 0 && (
-        <DeleteDocumentWarningModal
-          dependencies={deletionDependencies}
-          onConfirm={handleConfirmDeleteDocuments}
-          onClose={handleCancelDeleteDocuments}
-          isDeleting={isDeletingRecords}
-        />
-      )}
+        {deletionDependencies && deletionDependencies.length > 0 && (
+          <DeleteDocumentWarningModal
+            dependencies={deletionDependencies}
+            onConfirm={handleConfirmDeleteDocuments}
+            onClose={handleCancelDeleteDocuments}
+            isDeleting={isDeletingRecords}
+          />
+        )}
+
+        {isIngestionOpen && (
+          <DocumentIngestionModal
+            isOpen={isIngestionOpen}
+            onClose={() => setIsIngestionOpen(false)}
+            onDocumentAdded={handleDocumentAdded}
+            onResponseRequirementAdded={handleAddResponseRequirement}
+            onTimelineEventAdded={handleAddTimelineEvent}
+            existingDocuments={documents}
+          />
+        )}
+
+        {isStorageModalOpen && (
+          <SelfHostedStorageModal
+            isOpen={isStorageModalOpen}
+            onClose={() => setIsStorageModalOpen(false)}
+            currentStoreData={currentStoreData}
+            onStoreRestored={handleStoreRestored}
+            lastSyncTime={lastSyncTime}
+            syncStatus={syncStatus}
+          />
+        )}
+      </Suspense>
 
       {/* Undo Deletion Toast with Grace Period */}
       {activeUndoSnapshot && (
@@ -682,21 +743,20 @@ export default function App() {
         </div>
       )}
 
-      <DocumentIngestionModal
-        isOpen={isIngestionOpen}
-        onClose={() => setIsIngestionOpen(false)}
-        onDocumentAdded={handleDocumentAdded}
-        onResponseRequirementAdded={handleAddResponseRequirement}
-        onTimelineEventAdded={handleAddTimelineEvent}
-      />
-
-      <SelfHostedStorageModal
-        isOpen={isStorageModalOpen}
-        onClose={() => setIsStorageModalOpen(false)}
-        currentStoreData={currentStoreData}
-        onStoreRestored={handleStoreRestored}
-        lastSyncTime={lastSyncTime}
-        syncStatus={syncStatus}
+      {/* Persistent, minimisable case assistant — available on every tab.
+          Queries the entire recorded store and explains coverage gaps. */}
+      <FloatingCaseAssistant
+        documents={documents}
+        timeline={timeline}
+        communicationMessages={communicationMessages}
+        responseRequirements={responseRequirements}
+        partyProfiles={partyProfiles}
+        courtCriteria={courtCriteria}
+        orders={orders}
+        issuesConcerns={issuesConcerns}
+        knowledgeGaps={knowledgeGaps}
+        discrepancies={discrepancies}
+        onViewDocument={(doc) => setSelectedDocument(doc)}
       />
     </div>
   );

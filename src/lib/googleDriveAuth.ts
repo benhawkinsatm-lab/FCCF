@@ -6,21 +6,9 @@ import firebaseConfig from '../../firebase-applet-config.json';
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Scopes requested and authorized for Case 4344/2023 Google Drive Vault
+// Scopes requested and authorized for Case 4344/2023 Google Drive Vault (Least-Privilege Read-Only)
 export const SCOPES = [
-  'https://www.googleapis.com/auth/drive',
-  'https://www.googleapis.com/auth/drive.activity',
-  'https://www.googleapis.com/auth/drive.activity.readonly',
-  'https://www.googleapis.com/auth/drive.appdata',
-  'https://www.googleapis.com/auth/drive.apps.readonly',
-  'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/drive.install',
-  'https://www.googleapis.com/auth/drive.meet.readonly',
-  'https://www.googleapis.com/auth/drive.metadata',
-  'https://www.googleapis.com/auth/drive.metadata.readonly',
-  'https://www.googleapis.com/auth/drive.photos.readonly',
-  'https://www.googleapis.com/auth/drive.readonly',
-  'https://www.googleapis.com/auth/drive.scripts'
+  'https://www.googleapis.com/auth/drive.readonly'
 ];
 
 // Flag to track ongoing sign-in popup
@@ -72,8 +60,8 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     isSigningIn = true;
     try {
       const provider = new GoogleAuthProvider();
-      // Core drive scope providing full file and metadata synchronization
-      provider.addScope('https://www.googleapis.com/auth/drive');
+      // Least-privilege drive scope allowing case file reading and metadata synchronization
+      provider.addScope('https://www.googleapis.com/auth/drive.readonly');
       provider.setCustomParameters({
         prompt: 'select_account'
       });

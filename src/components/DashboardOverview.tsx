@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  ShieldCheck, 
   AlertOctagon, 
   Clock, 
   CheckCircle2, 
@@ -10,7 +9,6 @@ import {
   Mail, 
   Users, 
   FileText, 
-  TrendingDown, 
   AlertTriangle,
   Send,
   ExternalLink,
@@ -18,9 +16,7 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   Calendar,
-  Bell,
-  Sparkles,
-  Award
+  Bell
 } from 'lucide-react';
 import { DocumentRecord, TimelineEvent, ParentingOrder, DiscrepancyItem, CourtCriterion } from '../types';
 import { ActiveTab } from './Navbar';
@@ -665,7 +661,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-slate-800">Isabella Hawkins</span>
-                <span className="text-[11px] text-slate-500 font-mono">b. 12 July 2014 (Age 10)</span>
+                <span className="text-[11px] text-slate-500 font-mono">b. 21 July 2014 (Age 10)</span>
               </div>
               <p className="text-slate-600 text-[11px]">
                 Year 5 at Bassendean PS. Enrolled in speech therapy (Midland Paediatric Clinic) &amp; orthodontic review.
@@ -675,7 +671,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-slate-800">Mason Hawkins</span>
-                <span className="text-[11px] text-slate-500 font-mono">b. 18 February 2015 (Age 9)</span>
+                <span className="text-[11px] text-slate-500 font-mono">b. 15 February 2015 (Age 9)</span>
               </div>
               <p className="text-slate-600 text-[11px]">
                 Year 4 at Bassendean PS. Active player U9 Bassendean Junior Football Club (Ben is Assistant Coach). Asthma action plan (SJOG Midland).

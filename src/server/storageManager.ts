@@ -136,6 +136,20 @@ export async function checkPgConnection(): Promise<boolean> {
   }
 }
 
+export async function closePgPool(): Promise<void> {
+  if (pgPool) {
+    try {
+      await pgPool.end();
+      pgPool = null;
+      isPgInitialized = false;
+      pgInitPromise = null;
+      console.log('PostgreSQL connection pool terminated successfully.');
+    } catch (err: any) {
+      console.warn('Error closing PostgreSQL pool:', err?.message || err);
+    }
+  }
+}
+
 export async function ensurePgSchema(): Promise<boolean> {
   if (isPgInitialized) return true;
   if (pgInitPromise) return pgInitPromise;
@@ -369,53 +383,228 @@ export async function saveStorageState(
 }
 
 async function syncNormalizedTables(pool: Pool, caseId: string, data: any): Promise<void> {
-  // Sync documents table
+  // 1. Sync documents table (NO slice cap)
   if (Array.isArray(data.documents) && data.documents.length > 0) {
-    for (const doc of data.documents.slice(0, 100)) {
+    for (const doc of data.documents) {
       if (!doc.id || !doc.title) continue;
       await pool.query(
-        `INSERT INTO documents (id, case_number, title, date, type, file_name, summary, content, tags, admissibility)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `INSERT INTO documents (id, case_number, title, date, type, file_name, file_size, summary, content, tags, admissibility)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (id) DO UPDATE
-         SET title = EXCLUDED.title, summary = EXCLUDED.summary, tags = EXCLUDED.tags, admissibility = EXCLUDED.admissibility`,
+         SET title = EXCLUDED.title,
+             date = EXCLUDED.date,
+             type = EXCLUDED.type,
+             file_name = EXCLUDED.file_name,
+             file_size = EXCLUDED.file_size,
+             summary = EXCLUDED.summary,
+             content = EXCLUDED.content,
+             tags = EXCLUDED.tags,
+             admissibility = EXCLUDED.admissibility`,
         [
           doc.id,
           caseId,
           doc.title,
           doc.date && !isNaN(Date.parse(doc.date)) ? doc.date : null,
-          doc.type || 'EXHIBIT',
-          doc.fileName || null,
-          doc.summary || null,
-          doc.content || null,
+          doc.category || doc.fileType || 'EXHIBIT',
+          doc.sourceOrigin || doc.fileName || null,
+          doc.fileSize || null,
+          doc.excerpt || doc.summary || null,
+          doc.fullText || doc.content || null,
           JSON.stringify(doc.tags || []),
-          doc.admissibility || 'ADMISSIBLE',
+          doc.evidentiaryWeight || doc.admissibility || 'Third-Party Objective',
         ]
-      ).catch(() => {});
+      ).catch((err) => {
+        console.warn(`[storageManager] Failed to sync document ${doc.id}:`, err?.message || err);
+      });
     }
   }
 
-  // Sync timeline events table
+  // 2. Sync timeline events table (NO slice cap)
   if (Array.isArray(data.timeline) && data.timeline.length > 0) {
-    for (const event of data.timeline.slice(0, 100)) {
-      if (!event.id || !event.title || !event.date) continue;
+    for (const event of data.timeline) {
+      if (!event.id || !event.title) continue;
       await pool.query(
         `INSERT INTO timeline_events (id, case_number, date, time, title, description, category, severity, evidence_ids, disputed)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT (id) DO UPDATE
-         SET title = EXCLUDED.title, description = EXCLUDED.description, severity = EXCLUDED.severity, disputed = EXCLUDED.disputed`,
+         SET title = EXCLUDED.title,
+             date = EXCLUDED.date,
+             time = EXCLUDED.time,
+             description = EXCLUDED.description,
+             category = EXCLUDED.category,
+             severity = EXCLUDED.severity,
+             evidence_ids = EXCLUDED.evidence_ids,
+             disputed = EXCLUDED.disputed`,
         [
           event.id,
           caseId,
-          event.date,
+          event.date && !isNaN(Date.parse(event.date)) ? event.date : new Date().toISOString().slice(0, 10),
           event.time || null,
           event.title,
           event.description || null,
-          event.category || 'COMMUNICATION',
-          event.severity || 'LOW',
-          JSON.stringify(event.evidenceIds || []),
-          Boolean(event.disputed),
+          event.category || 'Direct Communication',
+          event.breachSeverity || event.severity || (event.orderBreachFlag ? 'Moderate' : 'Informational'),
+          JSON.stringify(event.primaryDocId ? [event.primaryDocId] : (event.evidenceIds || [])),
+          Boolean(event.orderBreachFlag ?? event.disputed),
         ]
-      ).catch(() => {});
+      ).catch((err) => {
+        console.warn(`[storageManager] Failed to sync timeline event ${event.id}:`, err?.message || err);
+      });
+    }
+  }
+
+  // 3. Sync parenting orders table
+  if (Array.isArray(data.orders) && data.orders.length > 0) {
+    for (const order of data.orders) {
+      if (!order.id) continue;
+      await pool.query(
+        `INSERT INTO parenting_orders (id, case_number, order_number, category, text, compliance_status, breach_count, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id) DO UPDATE
+         SET order_number = EXCLUDED.order_number,
+             category = EXCLUDED.category,
+             text = EXCLUDED.text,
+             compliance_status = EXCLUDED.compliance_status,
+             breach_count = EXCLUDED.breach_count,
+             notes = EXCLUDED.notes`,
+        [
+          order.id,
+          caseId,
+          order.orderNumber || null,
+          order.category || null,
+          order.orderText || order.title || '',
+          order.breachesCount > 0 ? 'Contravention Alleged' : 'Compliant',
+          order.breachesCount || 0,
+          `Compliance rate: ${order.complianceRate ?? 100}%`,
+        ]
+      ).catch((err) => {
+        console.warn(`[storageManager] Failed to sync order ${order.id}:`, err?.message || err);
+      });
+    }
+  }
+
+  // 4. Sync discrepancies table
+  if (Array.isArray(data.discrepancies) && data.discrepancies.length > 0) {
+    for (const disc of data.discrepancies) {
+      if (!disc.id) continue;
+      await pool.query(
+        `INSERT INTO discrepancies (id, case_number, title, description, category, severity, document_a_id, quote_a, document_b_id, impact_analysis)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO UPDATE
+         SET title = EXCLUDED.title,
+             description = EXCLUDED.description,
+             severity = EXCLUDED.severity,
+             document_a_id = EXCLUDED.document_a_id,
+             quote_a = EXCLUDED.quote_a,
+             document_b_id = EXCLUDED.document_b_id,
+             impact_analysis = EXCLUDED.impact_analysis`,
+        [
+          disc.id,
+          caseId,
+          disc.claimSource ? `Claim by ${disc.claimSource}` : 'Discrepancy',
+          disc.claimText || '',
+          'Contradiction',
+          disc.severity || 'Medium',
+          disc.evidenceDocId || null,
+          disc.claimText || null,
+          disc.conflictingFact || null,
+          disc.legalImpact || null,
+        ]
+      ).catch((err) => {
+        console.warn(`[storageManager] Failed to sync discrepancy ${disc.id}:`, err?.message || err);
+      });
+    }
+  }
+
+  // 5. Sync knowledge gaps table
+  if (Array.isArray(data.knowledgeGaps) && data.knowledgeGaps.length > 0) {
+    for (const gap of data.knowledgeGaps) {
+      if (!gap.id) continue;
+      await pool.query(
+        `INSERT INTO knowledge_gaps (id, case_number, title, description, category, priority, status, action_required)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id) DO UPDATE
+         SET title = EXCLUDED.title,
+             description = EXCLUDED.description,
+             category = EXCLUDED.category,
+             priority = EXCLUDED.priority,
+             status = EXCLUDED.status,
+             action_required = EXCLUDED.action_required`,
+        [
+          gap.id,
+          caseId,
+          gap.gapDescription ? gap.gapDescription.slice(0, 100) : 'Evidentiary Gap',
+          gap.gapDescription || '',
+          gap.category || 'General',
+          gap.urgency || 'Routine',
+          gap.resolved ? 'Resolved' : 'Active',
+          gap.suggestedAction || gap.recommendedQuestion || null,
+        ]
+      ).catch((err) => {
+        console.warn(`[storageManager] Failed to sync gap ${gap.id}:`, err?.message || err);
+      });
+    }
+  }
+
+  // 6. Sync communication messages table
+  if (Array.isArray(data.communicationMessages) && data.communicationMessages.length > 0) {
+    for (const msg of data.communicationMessages) {
+      if (!msg.id) continue;
+      await pool.query(
+        `INSERT INTO communication_messages (id, case_number, timestamp, sender, recipient, medium, summary, content, tone, is_breach_allegation)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO UPDATE
+         SET timestamp = EXCLUDED.timestamp,
+             sender = EXCLUDED.sender,
+             recipient = EXCLUDED.recipient,
+             medium = EXCLUDED.medium,
+             summary = EXCLUDED.summary,
+             content = EXCLUDED.content,
+             tone = EXCLUDED.tone,
+             is_breach_allegation = EXCLUDED.is_breach_allegation`,
+        [
+          msg.id,
+          caseId,
+          msg.timestamp && !isNaN(Date.parse(msg.timestamp)) ? msg.timestamp : null,
+          msg.sender || null,
+          msg.recipient || null,
+          msg.channel || 'SMS',
+          msg.content ? msg.content.slice(0, 150) : null,
+          msg.content || '',
+          msg.tone || 'Neutral',
+          Boolean(msg.breachOf42HourMandate),
+        ]
+      ).catch((err) => {
+        console.warn(`[storageManager] Failed to sync message ${msg.id}:`, err?.message || err);
+      });
+    }
+  }
+
+  // 7. Sync response requirements table
+  if (Array.isArray(data.responseRequirements) && data.responseRequirements.length > 0) {
+    for (const req of data.responseRequirements) {
+      if (!req.id) continue;
+      await pool.query(
+        `INSERT INTO response_requirements (id, case_number, trigger_event, status, response_sent_date, notes, compliance_rating)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (id) DO UPDATE
+         SET trigger_event = EXCLUDED.trigger_event,
+             status = EXCLUDED.status,
+             response_sent_date = EXCLUDED.response_sent_date,
+             notes = EXCLUDED.notes,
+             compliance_rating = EXCLUDED.compliance_rating`,
+        [
+          req.id,
+          caseId,
+          req.informationRequested || '',
+          req.status || 'waiting',
+          req.responseDate && !isNaN(Date.parse(req.responseDate)) ? req.responseDate : null,
+          req.responseDetails || null,
+          req.daysOverdue > 0 ? `Overdue by ${req.daysOverdue} days` : 'On Time',
+        ]
+      ).catch((err) => {
+        console.warn(`[storageManager] Failed to sync response requirement ${req.id}:`, err?.message || err);
+      });
     }
   }
 }

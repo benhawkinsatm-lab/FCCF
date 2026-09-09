@@ -6,22 +6,18 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
-  Scale,
-  FileText,
   Layers,
   ZoomIn,
   ZoomOut,
   Sparkles,
   StickyNote,
-  Highlighter,
   Check,
   Loader2,
-  Calendar,
   Eye,
   FileCheck
 } from 'lucide-react';
 import { DocumentRecord } from '../../types';
-import { BinderCoversheetConfig, DocumentAnnotation, BinderGroupingMode } from './types';
+import { BinderCoversheetConfig, DocumentAnnotation } from './types';
 import { generateEvidenceBinderPdf, sortAndGroupDocuments } from './pdfExportUtil';
 
 interface PdfBundlePreviewModalProps {

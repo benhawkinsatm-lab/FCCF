@@ -7,18 +7,12 @@ import {
   ExternalLink, 
   ShieldCheck, 
   Trash2, 
-  Scale, 
   Copy, 
   Check, 
   RefreshCw,
   Cpu,
   UserCheck,
-  Zap,
-  BookOpen,
-  Download,
-  AlertCircle,
-  HelpCircle,
-  Clock
+  Download
 } from 'lucide-react';
 import { DocumentRecord, EvidentiaryWeight } from '../types';
 

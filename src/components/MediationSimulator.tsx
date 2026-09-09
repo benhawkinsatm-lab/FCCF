@@ -3,12 +3,9 @@ import {
   Users, 
   ShieldAlert, 
   Scale, 
-  Send, 
   RefreshCw, 
   CheckCircle2, 
-  Sparkles, 
-  ExternalLink,
-  HelpCircle
+  Sparkles
 } from 'lucide-react';
 import { DocumentRecord } from '../types';
 

@@ -6,13 +6,10 @@ import {
   Check,
   Download,
   Scale,
-  FileText,
   ExternalLink,
   Send,
-  Sparkles,
   ShieldAlert,
-  CheckCircle2,
-  Filter
+  CheckCircle2
 } from 'lucide-react';
 import { CourtCriterion, DocumentRecord } from '../types';
 

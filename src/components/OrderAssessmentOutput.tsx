@@ -12,9 +12,7 @@ import {
   Copy, 
   Check, 
   Zap, 
-  AlertOctagon,
-  Info,
-  Sparkles,
+  Sparkles, 
   ArrowRight
 } from 'lucide-react';
 import { ProposedParentingOrder, ProposedOrderAssessment, DocumentRecord, EvidenceCitation } from '../types';
@@ -99,8 +97,8 @@ export const OrderAssessmentOutput: React.FC<OrderAssessmentOutputProps> = ({
   const handleFindAndOpenDoc = (citation: EvidenceCitation) => {
     if (!onViewDocument) return;
     const targetDoc = documents.find(d => 
-      (citation.docId && (d.id === citation.docId || d.docId === citation.docId)) || 
-      (citation.exhibitNumber && (d.annexureNumber === citation.exhibitNumber || d.annexureLetter === citation.exhibitNumber)) ||
+      (citation.docId && d.id === citation.docId) || 
+      (citation.exhibitNumber && d.annexureNumber === citation.exhibitNumber) ||
       (d.title.toLowerCase().includes(citation.title.toLowerCase().slice(0, 15)))
     );
 
@@ -110,17 +108,15 @@ export const OrderAssessmentOutput: React.FC<OrderAssessmentOutputProps> = ({
       // Create a virtual doc preview for this citation if needed
       onViewDocument({
         id: citation.docId || 'DOC-CITED',
-        docId: citation.docId || 'DOC-CITED',
         title: citation.title,
-        annexureLetter: citation.exhibitNumber || 'EX',
+        annexureNumber: citation.exhibitNumber || 'EX',
         date: new Date().toISOString().split('T')[0],
-        category: 'Legal Filings',
-        summary: citation.relevance,
-        evidentiaryWeight: 'Admissible Evidence',
-        weightJustification: 'Cited in statutory assessment under Family Law Act 1975 s 60CC.',
-        statutoryFactor: 'Family Law Act 1975 s 60CC',
+        category: 'Legal/Court',
+        sourceOrigin: 'Evidence Binder',
+        excerpt: citation.relevance,
+        fullText: citation.relevance,
+        evidentiaryWeight: 'Third-Party Objective',
         fileType: 'pdf',
-        folderSource: 'Evidence Binder',
         tags: ['Exhibit', citation.exhibitNumber || 'Cited']
       });
     }

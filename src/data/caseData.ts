@@ -10,7 +10,9 @@ import {
   IssueConcern,
   CourtCriterion,
   ProposedParentingOrder,
-  CaseSettings
+  CaseSettings,
+  ChildName,
+  ChildProfile
 } from '../types';
 
 export const CASE_METADATA: CaseSettings = {
@@ -20,8 +22,8 @@ export const CASE_METADATA: CaseSettings = {
   applicant: 'Benjamin James (Ben) Hawkins',
   respondent: 'Sue-Anne Hawkins',
   children: [
-    { name: 'Isabella Hawkins', dob: '2014-07-12', age: 10, school: 'Bassendean Primary School' },
-    { name: 'Mason Hawkins', dob: '2015-02-18', age: 9, school: 'Bassendean Primary School' },
+    { name: 'Isabella Hawkins', dob: '2014-07-21', age: 10, school: 'Bassendean Primary School' },
+    { name: 'Mason Hawkins', dob: '2015-02-15', age: 9, school: 'Bassendean Primary School' },
   ],
   ordersDate: '2023-11-14',
   statutoryRegime: 'Family Law Act 1975 (Cth) / Family Court Act 1997 (WA)',
@@ -30,7 +32,7 @@ export const CASE_METADATA: CaseSettings = {
   medicalNoticeHours: 24,
   travelNoticeDays: 28,
   strictZeroHallucination: true,
-  aiModel: 'gemini-2.5-flash',
+  aiModel: 'gemini-3.8-flash',
   enforceDocumentCitation: true,
   driveImportFolder: 'FCWA_Case_4344_Import_Inbox',
   autoIngestPolling: true,
@@ -105,6 +107,91 @@ export const FCWA_TEMPLATES = [
 // All mock response requirements removed
 export const INITIAL_RESPONSE_REQUIREMENTS: ResponseRequirement[] = [];
 
+/**
+ * Baseline profile for a subject child.
+ *
+ * Deliberately empty of substantive content: this application runs under a
+ * strict zero-hallucination rule, so a child's developmental, medical and
+ * educational findings must come from AI review of ingested evidence, never
+ * from a seeded assumption. Structure is provided; content is earned.
+ */
+function buildChildProfileBaseline(
+  id: string,
+  childName: ChildName,
+  meta: ChildProfile
+): PartyProfile {
+  return {
+    id,
+    partyName: meta.name,
+    role: `Child (${childName})` as PartyProfile['role'],
+    age: meta.age,
+    dob: meta.dob,
+    summary: `Subject child of Family Court of WA proceedings ${CASE_METADATA.caseNumber}. Best interests assessed under Family Law Act 1975 s 60CC.`,
+    behaviour: {
+      summary: 'Not applicable to a subject child — see developmental and emotional findings below.',
+      traits: [],
+      orderComplianceRating: 'N/A',
+      observedIncidentsCount: 0,
+      riskFactors: []
+    },
+    concerns: {
+      raisedByParty: [],
+      substantiatedConcernsAgainstParty: [],
+      safetyAndWellbeingNotes: ''
+    },
+    communicationTonePattern: {
+      primaryTone: 'Neutral',
+      avgResponseLatencyHours: 0,
+      order9BreachRate: 'N/A',
+      toneCharacteristics: [],
+      verbatimExamples: []
+    },
+    parentingCapacity: {
+      schoolEngagement: 'N/A — subject child',
+      medicalManagement: 'N/A — subject child',
+      routineConsistency: 'N/A — subject child'
+    },
+    evidentiaryReferences: [],
+    childDetail: {
+      childName,
+      school: meta.school,
+      developmentalNeeds: [],
+      healthAndMedical: {
+        summary: 'Awaiting medical record ingestion and AI review.',
+        conditions: [],
+        treatingProviders: [],
+        complianceNotes: ''
+      },
+      educationAndSchooling: {
+        summary: 'Awaiting school record ingestion and AI review.',
+        attendanceNotes: '',
+        supportNeeds: []
+      },
+      emotionalAndPsychological: {
+        summary: 'Awaiting therapy, counsellor or family report evidence.',
+        observedIndicators: [],
+        exposureToConflictNotes: ''
+      },
+      viewsExpressed: {
+        summary: 'No views recorded. s 60CC(2)(b) requires the Court to consider any views expressed by the child.',
+        recordedViews: [],
+        weightConsiderations: `Weight to be assessed against ${childName}'s age, maturity and level of understanding, and tested for parental influence.`
+      },
+      extracurricularAndSocial: {
+        summary: 'Awaiting extracurricular and social records.',
+        activities: []
+      },
+      safetyAndRiskNotes: '',
+      timelineCategoryCounts: {},
+      s60CCFactorLinks: [
+        'Family Law Act 1975, s 60CC(2)(a)',
+        'Family Law Act 1975, s 60CC(2)(b)',
+        'Family Law Act 1975, s 60CC(2)(c)'
+      ]
+    }
+  };
+}
+
 // Clean party profile baseline structures for proceedings
 export const INITIAL_PARTY_PROFILES: PartyProfile[] = [
   {
@@ -136,6 +223,16 @@ export const INITIAL_PARTY_PROFILES: PartyProfile[] = [
       schoolEngagement: '',
       medicalManagement: '',
       routineConsistency: ''
+    },
+    communicationProductivityPattern: {
+      productiveCount: 0,
+      partiallyProductiveCount: 0,
+      nonProductiveCount: 0,
+      nonProductiveRate: '0.0%',
+      substantiveResponseRate: 'N/A (no replies recorded)',
+      dominantNonProductiveMarkers: [],
+      nonProductiveExamples: [],
+      assessmentNote: 'Awaiting communication ingestion and productivity assessment.'
     },
     evidentiaryReferences: []
   },
@@ -169,8 +266,22 @@ export const INITIAL_PARTY_PROFILES: PartyProfile[] = [
       medicalManagement: '',
       routineConsistency: ''
     },
+    communicationProductivityPattern: {
+      productiveCount: 0,
+      partiallyProductiveCount: 0,
+      nonProductiveCount: 0,
+      nonProductiveRate: '0.0%',
+      substantiveResponseRate: 'N/A (no replies recorded)',
+      dominantNonProductiveMarkers: [],
+      nonProductiveExamples: [],
+      assessmentNote: 'Awaiting communication ingestion and productivity assessment.'
+    },
     evidentiaryReferences: []
-  }
+  },
+  // ── Subject children. Parties in their own right under s 60CC; each
+  //    carries a substantive record and their own timeline categories.
+  buildChildProfileBaseline('PROF-003', 'Isabella', CASE_METADATA.children[0]),
+  buildChildProfileBaseline('PROF-004', 'Mason', CASE_METADATA.children[1]),
 ];
 
 // All mock issues removed

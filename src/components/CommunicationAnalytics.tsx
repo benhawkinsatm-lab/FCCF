@@ -7,9 +7,16 @@ import {
   Frown, 
   Meh, 
   ExternalLink, 
-  Filter
+  MessageSquareOff,
+  Users
 } from 'lucide-react';
-import { CommunicationMessage, DocumentRecord } from '../types';
+import { CommunicationMessage, CommunicationProductivity, DocumentRecord } from '../types';
+import {
+  assessMessage,
+  detectChildrenReferenced,
+  summariseProductivityForParty,
+  PRODUCTIVITY_BADGE_CLASSES,
+} from '../utils/communicationProductivity';
 
 interface CommunicationAnalyticsProps {
   messages: CommunicationMessage[];
@@ -25,8 +32,21 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
   const [senderFilter, setSenderFilter] = useState<'All' | 'Sue-Anne Hawkins' | 'Benjamin Hawkins'>('All');
   const [toneFilter, setToneFilter] = useState<'All' | 'Hostile' | 'Neutral' | 'Cooperative'>('All');
   const [breachesOnly, setBreachesOnly] = useState(false);
+  const [productivityFilter, setProductivityFilter] = useState<'All' | CommunicationProductivity>('All');
 
   const motherMessages = messages.filter(m => m.sender === 'Sue-Anne Hawkins');
+
+  // Productivity is assessed independently of tone and of the 42-hour clock.
+  const motherProductivity = summariseProductivityForParty(messages, 'Sue-Anne Hawkins');
+  const fatherProductivity = summariseProductivityForParty(messages, 'Benjamin Hawkins');
+
+  // The critical pattern: replies that arrived ON TIME yet answered nothing.
+  // These look like compliance in a latency-only view.
+  const timelyButEmpty = messages.filter(m => {
+    const a = assessMessage(m);
+    const onTime = !m.breachOf42HourMandate && (m.lagHours === undefined || m.lagHours <= 42);
+    return onTime && a.productivity === 'Non-Productive';
+  });
 
   // Compute metrics
   const motherLags = motherMessages.filter(m => m.lagHours !== undefined).map(m => m.lagHours!);
@@ -44,6 +64,7 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
     if (senderFilter !== 'All' && m.sender !== senderFilter) return false;
     if (toneFilter !== 'All' && m.tone !== toneFilter) return false;
     if (breachesOnly && !m.breachOf42HourMandate && (!m.lagHours || m.lagHours <= 42)) return false;
+    if (productivityFilter !== 'All' && assessMessage(m).productivity !== productivityFilter) return false;
     return true;
   });
 
@@ -73,15 +94,58 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
       <div>
         <h1 className="text-xl font-bold text-slate-900 font-serif flex items-center gap-2">
           <BarChart3 className="w-5 h-5 text-indigo-600" />
-          <span>Communication &amp; Tone Analytics</span>
+          <span>Communication, Tone &amp; Productivity Analytics</span>
         </h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Algorithmic analysis of ingested SMS and emails for tone, hostility indicators, and response latency against the 42-hour court mandate (Order 9.1).
+          Algorithmic analysis of ingested SMS and emails across three independent axes: <strong>tone</strong> (how it was said),
+          <strong> productivity</strong> (whether it moved a parenting question forward), and <strong>latency</strong> against the
+          42-hour court mandate (Order 9.1). A civil, on-time reply that answered nothing fails the second test while passing the other two.
         </p>
       </div>
 
       {/* Comparative Analytical Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Productivity — substance, assessed independently of tone & timing */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+            <span>Non-Productive Rate</span>
+            <MessageSquareOff className="w-4 h-4 text-rose-500" />
+          </div>
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="p-2.5 bg-rose-50 rounded-lg border border-rose-200">
+              <span className="text-[10px] uppercase font-bold text-rose-700 block">Sue-Anne</span>
+              <span className="text-2xl font-bold text-rose-800">{motherProductivity.nonProductiveRate}</span>
+              <span className="text-[10px] text-rose-600 block mt-0.5">
+                {motherProductivity.nonProductiveCount} non-productive
+              </span>
+            </div>
+            <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
+              <span className="text-[10px] uppercase font-bold text-emerald-700 block">Benjamin</span>
+              <span className="text-2xl font-bold text-emerald-800">{fatherProductivity.nonProductiveRate}</span>
+              <span className="text-[10px] text-emerald-600 block mt-0.5">
+                {fatherProductivity.nonProductiveCount} non-productive
+              </span>
+            </div>
+          </div>
+
+          {timelyButEmpty.length > 0 && (
+            <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <span className="text-[11px] font-bold text-amber-900 block">
+                {timelyButEmpty.length} replied within 42h but answered nothing
+              </span>
+              <span className="text-[10px] text-amber-800 leading-snug block mt-0.5">
+                These read as compliant on latency alone. Order 9.1 requires a
+                response in substance, not merely a message inside the window.
+              </span>
+            </div>
+          )}
+
+          <p className="text-[11px] text-slate-500">
+            Substance is scored separately from tone: a civil, on-time reply that
+            supplies no information is still <strong>Non-Productive</strong>.
+          </p>
+        </div>
+
         {/* Latency Comparison */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
           <div className="flex items-center justify-between text-xs font-bold text-slate-500">
@@ -202,6 +266,27 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
             <span>&gt;42h Breaches</span>
           </button>
         </div>
+
+        {/* Productivity filter — separate axis from tone above */}
+        <div className="flex items-center gap-2 w-full pt-2 mt-1 border-t border-slate-100">
+          <span className="text-slate-400 font-medium flex items-center gap-1">
+            <MessageSquareOff className="w-3 h-3" />
+            Productivity:
+          </span>
+          {(['All', 'Productive', 'Partially Productive', 'Non-Productive', 'Unassessed'] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => setProductivityFilter(p)}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                productivityFilter === p
+                  ? 'bg-rose-600 text-white font-bold'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Messages Ingestion Feed */}
@@ -216,6 +301,13 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
           const ToneIcon = toneBadge.icon;
           const isBreach = msg.breachOf42HourMandate || (msg.lagHours !== undefined && msg.lagHours > 42);
           const linkedDoc = documents.find(d => d.id === msg.docRefId);
+          const productivity = assessMessage(msg);
+          const isNonProductive = productivity.productivity === 'Non-Productive';
+          // Prefer the stored attribution; fall back to detecting from content.
+          const childrenRef =
+            msg.childrenReferenced && msg.childrenReferenced.length > 0
+              ? msg.childrenReferenced
+              : detectChildrenReferenced(msg.content || '');
 
           return (
             <div 
@@ -242,6 +334,25 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
                     <ToneIcon className="w-3 h-3" />
                     <span>{msg.tone}</span>
                   </span>
+
+                  {/* Productivity badge — separate axis from tone */}
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+                      PRODUCTIVITY_BADGE_CLASSES[productivity.productivity]
+                    }`}
+                    title={productivity.rationale}
+                  >
+                    <MessageSquareOff className="w-3 h-3" />
+                    <span>{productivity.productivity}</span>
+                  </span>
+
+                  {/* Children this message actually concerns */}
+                  {childrenRef && childrenRef.length > 0 && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      <span>{childrenRef.join(', ')}</span>
+                    </span>
+                  )}
 
                   {/* 42h Breach Tag */}
                   {isBreach && (
@@ -272,6 +383,35 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
               <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs text-slate-800 font-sans leading-relaxed">
                 "{msg.content}"
               </div>
+
+              {/* Non-productive markers & rationale */}
+              {isNonProductive && (
+                <div className="p-2.5 bg-rose-50/70 border border-rose-200 rounded-lg space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="text-[10px] font-bold text-rose-900 uppercase tracking-wider mr-1">
+                      Non-productive markers:
+                    </span>
+                    {productivity.markers.length > 0 ? (
+                      productivity.markers.map((mk, i) => (
+                        <span
+                          key={i}
+                          className="text-[10px] px-1.5 py-0.5 bg-white text-rose-800 border border-rose-300 rounded font-medium"
+                        >
+                          {mk}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-[10px] text-rose-700">General lack of substance</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-rose-900 leading-snug">{productivity.rationale}</p>
+                  {productivity.s60CCFactorRef && (
+                    <p className="text-[10px] text-rose-700 font-mono">
+                      {productivity.s60CCFactorRef}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

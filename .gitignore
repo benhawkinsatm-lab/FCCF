@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Runtime case store and its backups. This is live case material about
+# named minors — it must never reach the repository. The app writes here
+# via DATA_DIR; in Docker it lives on the app_data volume instead.
+data/
+*.case_store.json

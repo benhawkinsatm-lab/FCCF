@@ -4,11 +4,7 @@ import {
   AlertOctagon, 
   Scale, 
   FileText, 
-  Calendar, 
   ExternalLink, 
-  ArrowUpRight, 
-  ShieldCheck, 
-  Download,
   Clock,
   CalendarDays
 } from 'lucide-react';

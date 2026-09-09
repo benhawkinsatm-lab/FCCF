@@ -5,16 +5,11 @@ import {
   Copy,
   Check,
   Download,
-  FileText,
   ExternalLink,
   Users,
   HeartPulse,
   GraduationCap,
-  Scale,
-  Calendar,
-  Sparkles,
-  ShieldCheck,
-  AlertTriangle
+  Scale
 } from 'lucide-react';
 import { DocumentRecord, TimelineEvent, CourtCriterion, ParentingOrder } from '../types';
 
@@ -482,7 +477,7 @@ The Father proposes orders that:
                         <span className="font-mono text-xs font-bold text-slate-800">{order.complianceRate}%</span>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-600">{order.terms}</p>
+                    <p className="text-xs text-slate-600">{order.orderText}</p>
                   </div>
                 ))}
               </div>

@@ -18,8 +18,7 @@ import {
   ChevronUp, 
   Copy, 
   Check,
-  Search,
-  Filter
+  Search
 } from 'lucide-react';
 import { IssueConcern, DocumentRecord } from '../types';
 
@@ -121,20 +120,20 @@ export const IssuesConcerns: React.FC<IssuesConcernsProps> = ({
       enrichedList.unshift({
         id: generatedId,
         title: `Identified issue: ${topDoc.title}`,
-        category: 'Statutory Concern',
+        category: 'Communication & Order 9.1',
         severity: 'Medium',
-        description: topDoc.summary || `Issue identified under statutory factor ${topDoc.statutoryFactor || 'FLA s 60CC'}.`,
+        description: topDoc.excerpt || `Issue identified under statutory factor ${topDoc.metadata?.s60CCFactorRef || topDoc.metadata?.statutoryBasis || 'FLA s 60CC'}.`,
         affectedChildren: [],
         dateIdentified: nowStamp,
-        status: 'Active Dispute',
-        s60CCFactorRef: topDoc.statutoryFactor || 's60CC(2)(a)',
+        status: 'Active Concern',
+        s60CCFactorRef: topDoc.metadata?.s60CCFactorRef || topDoc.metadata?.statutoryBasis || 's60CC(2)(a)',
         corroboratingEvidence: [
           {
             docId: topDoc.id,
             title: topDoc.title,
             date: topDoc.date || nowStamp,
             citation: topDoc.annexureNumber ? `Annexure ${topDoc.annexureNumber}` : 'Exhibit',
-            excerpt: topDoc.summary?.slice(0, 100) || 'Corroborating documentary evidence.'
+            excerpt: topDoc.excerpt?.slice(0, 100) || 'Corroborating documentary evidence.'
           }
         ],
         recommendedRemedyOrOrder: 'Incorporate specific safeguard order into Minute of Proposed Orders.',

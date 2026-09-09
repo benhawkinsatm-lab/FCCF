@@ -3,16 +3,8 @@ import {
   X,
   Download,
   Printer,
-  Archive,
-  FileText,
-  CheckSquare,
-  Square,
-  ShieldCheck,
-  Scale,
-  Sparkles,
   Loader2,
   Check,
-  FileSpreadsheet,
   FolderArchive
 } from 'lucide-react';
 import JSZip from 'jszip';
@@ -121,7 +113,7 @@ export const CaseDossierExportModal: React.FC<CaseDossierExportModalProps> = ({
       if (includeBreachCsv) {
         let csv = `Date,OrderBreached,Severity,Category,Description,PrimaryProof\n`;
         timeline.filter(t => t.orderBreachFlag).forEach(b => {
-          csv += `"${b.date}","${b.breachedOrderNumber || ''}","${b.breachSeverity || ''}","${b.category || ''}","${b.title.replace(/"/g, '""')}","${b.primaryDocumentId || ''}"\n`;
+          csv += `"${b.date}","${b.breachedOrderNumber || ''}","${b.breachSeverity || ''}","${b.category || ''}","${b.title.replace(/"/g, '""')}","${b.primaryDocId || ''}"\n`;
         });
         folder?.file("04_ORDER_CONTRAVENTION_REGISTER.csv", csv);
       }
@@ -130,7 +122,7 @@ export const CaseDossierExportModal: React.FC<CaseDossierExportModalProps> = ({
       if (includeTimelineCsv) {
         let timeCsv = `Date,Time,Category,Title,Description,SourceDoc,BreachFlag,ResponseLagHours\n`;
         timeline.forEach(t => {
-          timeCsv += `"${t.date}","${t.time || ''}","${t.category}","${t.title.replace(/"/g, '""')}","${t.description.replace(/"/g, '""')}","${t.primaryDocumentId || ''}","${t.orderBreachFlag ? 'YES' : 'NO'}","${t.responseLagHours || ''}"\n`;
+          timeCsv += `"${t.date}","${t.time || ''}","${t.category}","${t.title.replace(/"/g, '""')}","${t.description.replace(/"/g, '""')}","${t.primaryDocId || ''}","${t.orderBreachFlag ? 'YES' : 'NO'}","${t.responseLagHours || ''}"\n`;
         });
         folder?.file("05_CHRONOLOGICAL_TIMELINE.csv", timeCsv);
       }
@@ -158,7 +150,7 @@ export const CaseDossierExportModal: React.FC<CaseDossierExportModalProps> = ({
           dText += `CATEGORY: ${doc.category}\n`;
           dText += `SOURCE ORIGIN: ${doc.sourceOrigin}\n`;
           dText += `EVIDENTIARY WEIGHT: ${doc.evidentiaryWeight}\n\n`;
-          dText += `SUMMARY / EXTRACT:\n${doc.summary || 'Verified Court Document'}\n\n`;
+          dText += `SUMMARY / EXTRACT:\n${doc.excerpt || 'Verified Court Document'}\n\n`;
           if (doc.metadata) {
             dText += `METADATA:\n${JSON.stringify(doc.metadata, null, 2)}\n`;
           }

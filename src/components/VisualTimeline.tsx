@@ -1,17 +1,13 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Clock, 
   Search, 
-  Filter, 
   Plus, 
   AlertOctagon, 
   ExternalLink, 
   Download, 
-  ShieldCheck, 
   Check, 
-  User, 
   Calendar,
-  AlertTriangle,
   Eye,
   EyeOff,
   Scale,
@@ -22,17 +18,12 @@ import {
   DollarSign,
   ChevronDown,
   ChevronUp,
-  ChevronRight,
   Layers,
-  Sparkles,
-  RotateCcw,
   Copy,
-  SlidersHorizontal,
   ArrowUpDown,
   Columns,
   List,
-  GitCommit,
-  Share2
+  GitCommit
 } from 'lucide-react';
 import { TimelineEvent, DocumentRecord, DocumentCategory, EvidentiaryWeight } from '../types';
 
@@ -459,7 +450,6 @@ export const VisualTimeline: React.FC<VisualTimelineProps> = ({
   const filteredBreachCount = filteredTimeline.filter(e => e.orderBreachFlag).length;
   const filteredLagBreaches = filteredTimeline.filter(e => (e.responseLagHours || 0) > 42).length;
   const hiddenCategoriesCount = ALL_CATEGORIES.length - visibleCategories.size;
-  const hiddenEventsCount = timeline.length - filteredTimeline.length;
 
   return (
     <div className="space-y-6 pb-16" id="visual-timeline-root">

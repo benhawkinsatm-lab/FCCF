@@ -1,16 +1,11 @@
 import React, { useState } from 'react';
 import { 
   AlertTriangle, 
-  Search, 
   ExternalLink, 
   ShieldAlert, 
   FileSearch, 
-  CheckCircle2, 
-  Send, 
   Sparkles, 
   Plus, 
-  BookOpen,
-  Scale,
   Copy,
   Check,
   Calendar,

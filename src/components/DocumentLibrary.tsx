@@ -9,13 +9,9 @@ import {
   Tag, 
   Clock, 
   FolderArchive, 
-  CheckSquare, 
-  Square,
-  Download,
-  FileSpreadsheet,
   Trash2
 } from 'lucide-react';
-import { DocumentRecord, DocumentCategory, EvidentiaryWeight } from '../types';
+import { DocumentRecord, DocumentCategory } from '../types';
 import { METADATA_CATEGORIES } from './DocumentIngestionModal';
 import { EvidenceBinderSubsetModal } from './EvidenceBinderSubsetModal';
 import { 
@@ -200,12 +196,13 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
   }, [documents]);
 
   // Handler to persist edited tags from DocumentTagManagerModal
-  const handleSaveDocTags = (updatedDoc: DocumentRecord) => {
+  const handleSaveDocTags = (docId: string, updatedTags: string[]) => {
     if (!onUpdateDocuments) return;
-    const updated = documents.map(d => d.id === updatedDoc.id ? updatedDoc : d);
+    const updated = documents.map(d => d.id === docId ? { ...d, tags: updatedTags } : d);
     onUpdateDocuments(updated);
     setTagManagerDoc(null);
-    setFeedbackMsg(`Updated custom metadata tags for "${updatedDoc.title}"`);
+    const docTitle = documents.find(d => d.id === docId)?.title || 'document';
+    setFeedbackMsg(`Updated custom metadata tags for "${docTitle}"`);
   };
 
   // Quick inline tag addition
@@ -902,7 +899,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
           isOpen={Boolean(tagManagerDoc)}
           onClose={() => setTagManagerDoc(null)}
           document={tagManagerDoc}
-          allLibraryTags={allUniqueTags}
+          allExistingTags={allUniqueTags}
           onSaveTags={handleSaveDocTags}
         />
       )}

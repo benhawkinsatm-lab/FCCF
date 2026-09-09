@@ -4,10 +4,8 @@ import {
   Tags,
   Plus,
   Check,
-  Trash2,
   FolderCheck,
-  Layers,
-  AlertCircle
+  Layers
 } from 'lucide-react';
 import { DocumentRecord } from '../../types';
 

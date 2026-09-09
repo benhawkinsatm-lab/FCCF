@@ -7,16 +7,11 @@ import {
   Layers, 
   LayoutGrid, 
   Filter, 
-  ArrowUpDown, 
   ArrowUp, 
   ArrowDown, 
   Download, 
   RotateCcw, 
   Tag, 
-  Calendar, 
-  Building2, 
-  ShieldCheck, 
-  Check, 
   SlidersHorizontal 
 } from 'lucide-react';
 import { 
@@ -26,7 +21,6 @@ import {
   SortDirection, 
   DocumentFilterState 
 } from './types';
-import { DocumentRecord } from '../../types';
 
 interface DocumentToolbarProps {
   viewMode: DocumentViewMode;

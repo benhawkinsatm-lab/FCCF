@@ -6,23 +6,17 @@ import {
   Check,
   Download,
   Calendar,
-  Filter,
   ShieldAlert,
   Scale,
   Sparkles,
   RefreshCw,
   FileText,
-  AlertTriangle,
   CheckCircle2,
   ExternalLink,
-  ChevronDown,
-  Info,
-  Layers,
-  Clock,
   UserX,
   FileCheck
 } from 'lucide-react';
-import { TimelineEvent, ParentingOrder, DocumentRecord, EvidentiaryWeight, BreachSummaryReport } from '../types';
+import { TimelineEvent, ParentingOrder, DocumentRecord, BreachSummaryReport } from '../types';
 
 interface BreachSummaryReportModalProps {
   isOpen: boolean;

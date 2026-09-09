@@ -7,7 +7,6 @@ import {
   Image, 
   Search, 
   Plus, 
-  Download, 
   Upload, 
   Trash2, 
   ExternalLink, 
@@ -19,9 +18,7 @@ import {
   ShieldCheck, 
   FolderPlus, 
   FileSpreadsheet, 
-  ArrowLeft,
   ChevronRight,
-  Info,
   CheckCircle2,
   Sparkles,
   Inbox,
@@ -30,13 +27,11 @@ import {
   Eye,
   FolderSync,
   UploadCloud,
-  Layers,
   Scale
 } from 'lucide-react';
 import { 
   googleSignIn, 
   logout, 
-  getAccessToken, 
   initAuth 
 } from '../lib/googleDriveAuth';
 import { 
@@ -328,11 +323,12 @@ export const GoogleDriveVault: React.FC<GoogleDriveVaultProps> = ({
       } else {
         console.warn(`AI ingestion returned ${res.status}, creating deterministic court record.`);
         const nextNum = documents.length + 1;
+        const fileYear = file.modifiedTime ? file.modifiedTime.slice(0, 4) : new Date().getFullYear().toString();
         data = {
-          docId: `DOC-2024-${String(nextNum).padStart(3, '0')}`,
+          docId: `DOC-${fileYear}-${String(nextNum).padStart(3, '0')}`,
           title: file.name.replace(/\.[^/.]+$/, ''),
           category: 'Direct Communication',
-          date: new Date().toISOString().slice(0, 10),
+          date: file.modifiedTime ? file.modifiedTime.slice(0, 10) : new Date().toISOString().slice(0, 10),
           sourceOrigin: `Google Drive (${file.name})`,
           evidentiaryWeight: 'Third-Party Objective',
           excerpt: content.slice(0, 240) + '...',
@@ -345,8 +341,9 @@ export const GoogleDriveVault: React.FC<GoogleDriveVaultProps> = ({
         };
       }
 
+      const fileYear = file.modifiedTime ? file.modifiedTime.slice(0, 4) : new Date().getFullYear().toString();
       const newDoc: DocumentRecord = {
-        id: data.docId || `DOC-2024-${Date.now().toString().slice(-3)}`,
+        id: data.docId || `DOC-${fileYear}-${String(documents.length + 1).padStart(3, '0')}`,
         title: data.title || file.name.replace(/\.[^/.]+$/, ''),
         category: data.category || 'Direct Communication',
         date: data.date || new Date().toISOString().slice(0, 10),
@@ -483,11 +480,12 @@ export const GoogleDriveVault: React.FC<GoogleDriveVaultProps> = ({
           data = await res.json();
         } else {
           const nextNum = documents.length + recordedCount + 1;
+          const fileYear = file.modifiedTime ? file.modifiedTime.slice(0, 4) : new Date().getFullYear().toString();
           data = {
-            docId: `DOC-2024-${String(nextNum).padStart(3, '0')}`,
+            docId: `DOC-${fileYear}-${String(nextNum).padStart(3, '0')}`,
             title: file.name.replace(/\.[^/.]+$/, ''),
             category: 'Direct Communication',
-            date: new Date().toISOString().slice(0, 10),
+            date: file.modifiedTime ? file.modifiedTime.slice(0, 10) : new Date().toISOString().slice(0, 10),
             sourceOrigin: `Google Drive (${file.name})`,
             evidentiaryWeight: 'Third-Party Objective',
             excerpt: content.slice(0, 240) + '...',
@@ -501,8 +499,9 @@ export const GoogleDriveVault: React.FC<GoogleDriveVaultProps> = ({
         }
 
         if (data) {
+          const fileYear = file.modifiedTime ? file.modifiedTime.slice(0, 4) : new Date().getFullYear().toString();
           const newDoc: DocumentRecord = {
-            id: data.docId || `DOC-2024-${Date.now().toString().slice(-3)}`,
+            id: data.docId || `DOC-${fileYear}-${String(documents.length + recordedCount + 1).padStart(3, '0')}`,
             title: data.title || file.name.replace(/\.[^/.]+$/, ''),
             category: data.category || 'Direct Communication',
             date: data.date || new Date().toISOString().slice(0, 10),
@@ -621,8 +620,10 @@ export const GoogleDriveVault: React.FC<GoogleDriveVaultProps> = ({
         evidentiaryWeight = 'Sworn/Official';
       }
 
+      const nextNum = documents.length + 1;
+      const fileYear = file.modifiedTime ? file.modifiedTime.slice(0, 4) : new Date().getFullYear().toString();
       const newDoc: DocumentRecord = {
-        id: `DOC-DRIVE-${Date.now().toString().slice(-4)}`,
+        id: `DOC-${fileYear}-${String(nextNum).padStart(3, '0')}`,
         title: file.name.replace(/\.[^/.]+$/, ''),
         category,
         date: file.modifiedTime ? file.modifiedTime.slice(0, 10) : new Date().toISOString().slice(0, 10),
@@ -632,7 +633,7 @@ export const GoogleDriveVault: React.FC<GoogleDriveVaultProps> = ({
         excerpt: content.slice(0, 240) + '...',
         fullText: content,
         fileSize: file.size ? `${(parseInt(file.size) / 1024).toFixed(1)} KB` : 'Cloud Doc',
-        annexureNumber: `BJH-GD-${Math.floor(Math.random() * 90 + 10)}`,
+        annexureNumber: `BJH-${nextNum}`,
         metadata: {
           googleDriveFileId: file.id,
           webViewLink: file.webViewLink,
@@ -666,7 +667,7 @@ export const GoogleDriveVault: React.FC<GoogleDriveVaultProps> = ({
   const handleExecuteExport = async () => {
     if (!accessToken) return;
     setExportStatus({ status: 'exporting' });
-    const { type, title } = confirmExportModal;
+    const { type } = confirmExportModal;
     setConfirmExportModal(prev => ({ ...prev, isOpen: false }));
 
     try {
@@ -679,24 +680,16 @@ export const GoogleDriveVault: React.FC<GoogleDriveVaultProps> = ({
 CASE NUMBER: 4344/2023
 APPLICANT: BENJAMIN JAMES HAWKINS
 RESPONDENT: SUE-ANNE HAWKINS
+CHILDREN: ISABELLA HAWKINS (DOB: 21/07/2014), MASON HAWKINS (DOB: 15/02/2015)
+DATE GENERATED: ${new Date().toLocaleString()}
 
-==================================================
-OFFICIAL EVIDENCE BINDER & ANNEXURE REGISTER
-Generated: ${new Date().toLocaleString()}
-Cloud Storage: Google Drive Synchronized
-==================================================
-
-TOTAL VERIFIED EXHIBITS: ${documents.length}
-
-${documents.map((d, i) => `[ANNEXURE ${d.annexureNumber || `BJH-${i + 1}`}]
-Title: ${d.title}
-Reference ID: ${d.id}
-Category: ${d.category}
-Date of Record: ${d.date}
-Evidentiary Weight: ${d.evidentiaryWeight}
-Source: ${d.sourceOrigin}
-Excerpt:
-"${d.excerpt}"
+INDEX OF ADMISSIBLE EVIDENCE (DOCUMENTS: ${documents.length})
+================================================================================
+${documents.map((d, i) => `[${i + 1}] ANNEXURE ${d.annexureNumber || 'N/A'}: ${d.title}
+    Document ID: ${d.id}
+    Date: ${d.date} | Category: ${d.category}
+    Weight: ${d.evidentiaryWeight} | Source: ${d.sourceOrigin}
+    Excerpt: ${d.excerpt}
 --------------------------------------------------`).join('\n\n')}
 
 End of Evidence Register.`;
@@ -710,10 +703,10 @@ REGISTERED DOCUMENTS: ${documents.length}
 ${documents.length === 0 ? 'No documents ingested yet.' : documents.map((d, i) => `[RECORD ${i + 1}]
 - Title: ${d.title}
 - Reference ID: ${d.id}
-- Statutory Factor: ${d.statutoryFactor || 'FLA s 60CC'}
+- Statutory Factor: ${d.metadata?.s60CCFactorRef || d.metadata?.statutoryBasis || 'FLA s 60CC'}
 - Date: ${d.date}
 - Evidentiary Weight: ${d.evidentiaryWeight}
-- Summary: ${d.summary}`).join('\n\n')}
+- Summary: ${d.excerpt}`).join('\n\n')}
 
 Exported securely to Google Drive.`;
       }

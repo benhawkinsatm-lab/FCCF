@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { RotateCcw, X, ShieldAlert, CheckCircle2, AlertTriangle, Layers } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { RotateCcw, X, ShieldAlert, Layers } from 'lucide-react';
 import { DeletionUndoSnapshot } from '../../utils/documentDependencyService';
 
 interface UndoDeletionToastProps {

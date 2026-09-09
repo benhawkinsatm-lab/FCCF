@@ -3,8 +3,6 @@ import {
   Scale, 
   Sparkles, 
   RefreshCw, 
-  ShieldCheck, 
-  AlertTriangle, 
   CheckCircle2, 
   FileText, 
   ExternalLink, 
@@ -12,8 +10,6 @@ import {
   Check, 
   Copy, 
   Info,
-  ChevronDown,
-  ChevronUp,
   Search,
   FileCheck
 } from 'lucide-react';

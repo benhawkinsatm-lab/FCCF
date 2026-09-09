@@ -6,7 +6,6 @@ import {
   CheckSquare, 
   Square, 
   CheckCircle2, 
-  AlertTriangle, 
   ShieldAlert, 
   FileText, 
   Copy, 
@@ -14,17 +13,13 @@ import {
   Plus, 
   ChevronDown, 
   ChevronUp, 
-  History, 
   UserX, 
-  ShieldCheck,
   Zap,
-  Info,
   ArrowRightLeft,
   UserCheck,
-  Users,
-  AlertCircle
+  Users
 } from 'lucide-react';
-import { ProposedParentingOrder, CourtCriterion, DocumentRecord, EvidenceCitation } from '../types';
+import { ProposedParentingOrder, ProposedOrderAssessment, CourtCriterion, DocumentRecord, EvidenceCitation } from '../types';
 import { PartyOrdersToggleView } from './PartyOrdersToggleView';
 import { OrderAssessmentOutput } from './OrderAssessmentOutput';
 
@@ -95,8 +90,6 @@ export const ProposedOrders: React.FC<ProposedOrdersProps> = ({
   const selectedOrderForAiTrigger = orders.find(o => o.id === selectedOrderForAiTriggerId) || orders[0];
 
   const selectedCount = orders.filter(o => o.selectedForAiReview).length;
-  const mySelectedCount = myOrders.filter(o => o.selectedForAiReview).length;
-  const sueAnneSelectedCount = sueAnneOrders.filter(o => o.selectedForAiReview).length;
 
   const toggleExpand = (id: string) => {
     setExpandedOrderIds(prev => 
@@ -164,7 +157,7 @@ export const ProposedOrders: React.FC<ProposedOrdersProps> = ({
           documentsExcerpt: documents.slice(0, 10).map(d => ({
             id: d.id,
             title: d.title,
-            excerpt: d.summary
+            excerpt: d.excerpt
           }))
         })
       });
@@ -262,7 +255,7 @@ export const ProposedOrders: React.FC<ProposedOrdersProps> = ({
             docId: doc.id,
             exhibitNumber: doc.annexureNumber || 'EX-1',
             title: doc.title,
-            relevance: `Correlated evidentiary record under statutory consideration ${doc.statutoryFactor || 'FLA s 60CC'}.`
+            relevance: `Correlated evidentiary record under statutory consideration ${doc.metadata?.s60CCFactorRef || doc.metadata?.statutoryBasis || 'FLA s 60CC'}.`
           }))
         : [];
 
@@ -270,10 +263,10 @@ export const ProposedOrders: React.FC<ProposedOrdersProps> = ({
         ...order,
         assessment: {
           assessedAt: nowStamp,
-          riskLevel: isSueAnne ? 'Critical' : 'Low',
+          riskLevel: (isSueAnne ? 'Critical' : 'Low') as ProposedOrderAssessment['riskLevel'],
           evidenceCitations: citations,
           statutoryFactorsReferenced: ['s 60CC(2)(a)', 's 60CC(2)(c)', 's 60CC(3)(d)'],
-          overallFeasibility: isSueAnne ? 'High Risk of Breach' : 'Strong Court Prospect',
+          overallFeasibility: (isSueAnne ? 'High Risk of Breach' : 'Strong Court Prospect') as ProposedOrderAssessment['overallFeasibility'],
           courtCriteriaCheck: [
             {
               criterionId: 's60CC-2a',
@@ -308,7 +301,7 @@ export const ProposedOrders: React.FC<ProposedOrdersProps> = ({
             behaviorPattern: isSueAnne
               ? 'Potential communication latency and unilateral decision-making risk.'
               : 'Consistent adherence to formal notices and court timetables.',
-            riskOfBreach: isSueAnne ? 'High' : 'Low',
+            riskOfBreach: (isSueAnne ? 'High' : 'Low') as 'High' | 'Low',
             rationale: isSueAnne
               ? 'Risk of compliance friction unless drafting specifies self-executing defaults.'
               : 'Clear and actionable drafting promotes long-term settlement stability.'

@@ -1,15 +1,10 @@
 import React, { useState } from 'react';
 import {
   X,
-  FileCheck,
-  Calendar,
   Scale,
-  User,
-  Layers,
   Check,
   RotateCcw,
-  Sparkles,
-  SlidersHorizontal
+  Sparkles
 } from 'lucide-react';
 import { DocumentRecord } from '../../types';
 import { BinderCoversheetConfig, BinderGroupingMode } from './types';

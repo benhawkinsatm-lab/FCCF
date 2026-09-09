@@ -2,13 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { 
   ChevronDown, 
   ChevronRight, 
-  Layers, 
   CheckSquare, 
   Square, 
   ExternalLink, 
   Copy, 
   Check, 
-  FolderCheck,
   FileText,
   Stethoscope,
   GraduationCap,
@@ -21,7 +19,7 @@ import {
   Tag,
   Trash2
 } from 'lucide-react';
-import { DocumentRecord, DocumentCategory } from '../../types';
+import { DocumentRecord } from '../../types';
 import { GroupByField } from './types';
 
 interface DocumentGroupedViewProps {

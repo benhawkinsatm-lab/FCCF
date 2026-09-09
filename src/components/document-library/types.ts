@@ -1,5 +1,3 @@
-import { DocumentRecord, DocumentCategory, EvidentiaryWeight } from '../../types';
-
 export type DocumentViewMode = 'table' | 'split' | 'grouped' | 'grid';
 export type DisplayDensity = 'compact' | 'comfortable';
 

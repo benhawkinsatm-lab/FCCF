@@ -6,11 +6,7 @@ import {
   Plus,
   Trash2,
   Check,
-  Tag,
-  Calendar,
-  User,
-  Quote,
-  Sparkles
+  Quote
 } from 'lucide-react';
 import { DocumentRecord } from '../../types';
 import { DocumentAnnotation, AnnotationColor } from './types';
@@ -58,7 +54,7 @@ export const DocumentAnnotationModal: React.FC<DocumentAnnotationModalProps> = (
   const [color, setColor] = useState<AnnotationColor>('amber');
   const [annotationType, setAnnotationType] = useState<'highlight' | 'sticky_note'>('sticky_note');
   const [categoryTag, setCategoryTag] = useState('Order Breach');
-  const [author, setAuthor] = useState('Benjamin Hawkins (Applicant)');
+  const [author] = useState('Benjamin Hawkins (Applicant)');
   const [isSuccessFeedback, setIsSuccessFeedback] = useState(false);
 
   if (!isOpen) return null;
