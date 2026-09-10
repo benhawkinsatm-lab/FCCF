@@ -1519,7 +1519,7 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
             ))}
           </div>
           <p className="text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-100">
-            <strong>Evidentiary Finding:</strong> 40% of all contraventions occur on Friday afternoon, showing a planned pattern of obstructing the Father's weekend care prior to the school gate bell.
+            <strong>Day-of-Week Distribution:</strong> {dayOfWeekStats.find(d => d.day === 'Friday')?.percentage ?? 0}% of {allBreaches.length} recorded contravention{allBreaches.length === 1 ? '' : 's'} occur{allBreaches.length === 1 ? 's' : ''} on a Friday, based on the documents currently in the case record.
           </p>
         </div>
 
