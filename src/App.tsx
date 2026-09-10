@@ -631,6 +631,13 @@ export default function App() {
             messages={communicationMessages}
             documents={documents}
             onViewDocument={(doc) => setSelectedDocument(doc)}
+            onGenerateMessages={(generated) => {
+              setCommunicationMessages(prev => {
+                const byId = new Map(prev.map(m => [m.id, m]));
+                generated.forEach(m => byId.set(m.id, m));
+                return ensureAssessments(Array.from(byId.values()));
+              });
+            }}
           />
         )}
 

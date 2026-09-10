@@ -8,7 +8,10 @@ import {
   Meh, 
   ExternalLink, 
   MessageSquareOff,
-  Users
+  Users,
+  Sparkles,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { CommunicationMessage, CommunicationProductivity, DocumentRecord } from '../types';
 import {
@@ -22,19 +25,48 @@ interface CommunicationAnalyticsProps {
   messages: CommunicationMessage[];
   documents: DocumentRecord[];
   onViewDocument: (doc: DocumentRecord) => void;
+  onGenerateMessages?: (generated: CommunicationMessage[]) => void;
 }
 
 export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
   messages,
   documents,
   onViewDocument,
+  onGenerateMessages,
 }) => {
   const [senderFilter, setSenderFilter] = useState<'All' | 'Sue-Anne Hawkins' | 'Benjamin Hawkins'>('All');
   const [toneFilter, setToneFilter] = useState<'All' | 'Hostile' | 'Neutral' | 'Cooperative'>('All');
   const [breachesOnly, setBreachesOnly] = useState(false);
   const [productivityFilter, setProductivityFilter] = useState<'All' | CommunicationProductivity>('All');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+
+  const handleGenerateFromDocuments = async () => {
+    setIsGenerating(true);
+    setGenerationError(null);
+    try {
+      const res = await fetch('/api/gemini/generate-communications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documents }),
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      const generated: CommunicationMessage[] = Array.isArray(data.messages) ? data.messages : [];
+      if (generated.length === 0) {
+        setGenerationError(data.note || 'No communication records could be extracted from the documents currently in the case record.');
+      } else if (onGenerateMessages) {
+        onGenerateMessages(generated);
+      }
+    } catch (err) {
+      setGenerationError('AI generation failed. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const motherMessages = messages.filter(m => m.sender === 'Sue-Anne Hawkins');
+  const fatherMessages = messages.filter(m => m.sender === 'Benjamin Hawkins');
 
   // Productivity is assessed independently of tone and of the 42-hour clock.
   const motherProductivity = summariseProductivityForParty(messages, 'Sue-Anne Hawkins');
@@ -53,12 +85,25 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
   const motherAvgLag = motherLags.length > 0 
     ? (motherLags.reduce((a, b) => a + b, 0) / motherLags.length).toFixed(1)
     : '0';
+  const motherMaxLag = motherLags.length > 0 ? Math.max(...motherLags).toFixed(1) : '0';
 
   const motherBreaches = motherMessages.filter(m => m.breachOf42HourMandate || (m.lagHours && m.lagHours > 42)).length;
   const motherComplianceRate = Math.round(((motherLags.length - motherBreaches) / (motherLags.length || 1)) * 100);
 
   const motherHostileCount = motherMessages.filter(m => m.tone === 'Hostile').length;
   const motherHostilePercent = Math.round((motherHostileCount / (motherMessages.length || 1)) * 100);
+
+  const fatherLags = fatherMessages.filter(m => m.lagHours !== undefined).map(m => m.lagHours!);
+  const fatherAvgLag = fatherLags.length > 0 
+    ? (fatherLags.reduce((a, b) => a + b, 0) / fatherLags.length).toFixed(1)
+    : '0';
+  const fatherMaxLag = fatherLags.length > 0 ? Math.max(...fatherLags).toFixed(1) : '0';
+
+  const fatherBreaches = fatherMessages.filter(m => m.breachOf42HourMandate || (m.lagHours && m.lagHours > 42)).length;
+  const fatherComplianceRate = Math.round(((fatherLags.length - fatherBreaches) / (fatherLags.length || 1)) * 100);
+
+  const fatherHostileCount = fatherMessages.filter(m => m.tone === 'Hostile').length;
+  const fatherHostilePercent = Math.round((fatherHostileCount / (fatherMessages.length || 1)) * 100);
 
   const filteredMessages = messages.filter(m => {
     if (senderFilter !== 'All' && m.sender !== senderFilter) return false;
@@ -91,17 +136,35 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
   return (
     <div className="space-y-6 pb-12" id="communication-analytics-container">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-slate-900 font-serif flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-indigo-600" />
-          <span>Communication, Tone &amp; Productivity Analytics</span>
-        </h1>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Algorithmic analysis of ingested SMS and emails across three independent axes: <strong>tone</strong> (how it was said),
-          <strong> productivity</strong> (whether it moved a parenting question forward), and <strong>latency</strong> against the
-          42-hour court mandate (Order 9.1). A civil, on-time reply that answered nothing fails the second test while passing the other two.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 font-serif flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-indigo-600" />
+            <span>Communication, Tone &amp; Productivity Analytics</span>
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5 max-w-3xl">
+            Algorithmic analysis of ingested SMS and emails across three independent axes: <strong>tone</strong> (how it was said),
+            <strong> productivity</strong> (whether it moved a parenting question forward), and <strong>latency</strong> against the
+            42-hour court mandate (Order 9.1). A civil, on-time reply that answered nothing fails the second test while passing the other two.
+          </p>
+        </div>
+        <button
+          id="generate-communications-ai-btn"
+          onClick={handleGenerateFromDocuments}
+          disabled={isGenerating}
+          className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+        >
+          {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          <span>{isGenerating ? 'Generating…' : messages.length > 0 ? 'Regenerate from Documents' : 'Generate from Documents'}</span>
+        </button>
       </div>
+
+      {generationError && (
+        <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{generationError}</span>
+        </div>
+      )}
 
       {/* Comparative Analytical Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -156,12 +219,12 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
             <div className="p-2.5 bg-rose-50 rounded-lg border border-rose-200">
               <span className="text-[10px] uppercase font-bold text-rose-700 block">Sue-Anne</span>
               <span className="text-2xl font-bold text-rose-800">{motherAvgLag}h</span>
-              <span className="text-[10px] text-rose-600 block mt-0.5">Max: 126.3h</span>
+              <span className="text-[10px] text-rose-600 block mt-0.5">Max: {motherMaxLag}h</span>
             </div>
             <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
               <span className="text-[10px] uppercase font-bold text-emerald-700 block">Benjamin</span>
-              <span className="text-2xl font-bold text-emerald-800">2.1h</span>
-              <span className="text-[10px] text-emerald-600 block mt-0.5">Prompt &amp; Compliant</span>
+              <span className="text-2xl font-bold text-emerald-800">{fatherAvgLag}h</span>
+              <span className="text-[10px] text-emerald-600 block mt-0.5">Max: {fatherMaxLag}h</span>
             </div>
           </div>
           <p className="text-[11px] text-slate-500">
@@ -183,25 +246,25 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
             </div>
             <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
               <span className="text-[10px] uppercase font-bold text-emerald-700 block">Benjamin</span>
-              <span className="text-2xl font-bold text-emerald-800">100%</span>
-              <span className="text-[10px] text-emerald-600 block mt-0.5">0 Breaches</span>
+              <span className="text-2xl font-bold text-emerald-800">{fatherComplianceRate}%</span>
+              <span className="text-[10px] text-emerald-600 block mt-0.5">{fatherBreaches} Flagged Breaches</span>
             </div>
           </div>
           <p className="text-[11px] text-slate-500">
-            Chronically delayed responses to medical and changeover notices constitute contempt of orders.
+            Order 9.1 requires a response within 42 hours to non-urgent communications; a delayed response is flagged as a breach above.
           </p>
         </div>
 
         {/* Tone Distribution */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
           <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-            <span>Respondent Tone Profile</span>
+            <span>Tone Profile</span>
             <Frown className="w-4 h-4 text-rose-500" />
           </div>
           <div className="space-y-2 pt-1 text-xs">
             <div>
               <div className="flex justify-between text-[11px] font-semibold text-slate-700 mb-1">
-                <span>Hostile / Obstructionist</span>
+                <span>Sue-Anne &mdash; Hostile / Obstructionist</span>
                 <span className="font-mono">{motherHostilePercent}%</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -211,16 +274,16 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
 
             <div>
               <div className="flex justify-between text-[11px] font-semibold text-slate-700 mb-1">
-                <span>Cooperative / Neutral</span>
-                <span className="font-mono">{100 - motherHostilePercent}%</span>
+                <span>Benjamin &mdash; Hostile / Obstructionist</span>
+                <span className="font-mono">{fatherHostilePercent}%</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${100 - motherHostilePercent}%` }} />
+                <div className="bg-rose-500 h-full rounded-full" style={{ width: `${fatherHostilePercent}%` }} />
               </div>
             </div>
           </div>
           <p className="text-[11px] text-slate-500">
-            Language patterns evidence parental alienation and disparagement (Order 11.2).
+            Tone is classified per message from its actual language at ingestion; this chart is a summary of those classifications, not an independent finding.
           </p>
         </div>
       </div>
@@ -295,6 +358,22 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
           <span>Ingested Communications Ledger ({filteredMessages.length})</span>
           <span>Verified Telco &amp; Email Records</span>
         </div>
+
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center text-center py-16 px-6 bg-white border border-slate-200 rounded-xl">
+            <MessageSquareOff className="w-10 h-10 text-slate-300 mb-3" />
+            <h2 className="text-sm font-bold text-slate-900">No Communications Recorded Yet</h2>
+            <p className="text-xs text-slate-500 mt-1 max-w-md">
+              This ledger is populated from SMS and email records ingested into the case (via document ingestion), then classified with &quot;Generate from Documents&quot; above. There is nothing to display until then.
+            </p>
+          </div>
+        )}
+
+        {messages.length > 0 && filteredMessages.length === 0 && (
+          <div className="text-center py-10 text-xs text-slate-400">
+            No ingested communications match the current filters.
+          </div>
+        )}
 
         {filteredMessages.map((msg) => {
           const toneBadge = getToneBadge(msg.tone);

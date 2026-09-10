@@ -1719,6 +1719,84 @@ If there are no school-related documents at all, set "schoolAudit" to null. If t
     }
   });
 
+  // AI extract structured Communication Log entries (tone/productivity classified)
+  // from ingested Direct Communication documents. Zero-hallucination: only
+  // documents that clearly evidence an SMS/email exchange produce a record.
+  app.post('/api/gemini/generate-communications', async (req, res) => {
+    const { documents = [] } = req.body;
+    const ai = getAiClient();
+
+    const commsDocs = (documents || []).filter((d: any) =>
+      d.category === 'Direct Communication' || d.fileType === 'sms' || d.fileType === 'email'
+    );
+
+    const emptyResult = {
+      messages: [],
+      note: commsDocs.length === 0
+        ? 'No documents categorised as Direct Communication (SMS/email) are currently in the case record.'
+        : 'AI generation is unavailable right now. No communication records could be extracted.'
+    };
+
+    if (!ai || commsDocs.length === 0) {
+      return res.json(emptyResult);
+    }
+
+    try {
+      const docSummary = commsDocs.slice(0, 60).map((d: any) =>
+        `[${d.id}] date=${d.date} fileType=${d.fileType} sourceOrigin="${d.sourceOrigin}" -- Excerpt: ${(d.excerpt || d.fullText || '').slice(0, 600)}`
+      ).join('\n');
+
+      const prompt = `${CASE_CONTEXT_PROMPT}
+
+TASK: Extract a structured Communication Log entry for each document below that
+clearly evidences a single SMS or email message sent by one named party
+(Benjamin Hawkins or Sue-Anne Hawkins) to the other, or by a third party.
+
+DOCUMENTS:
+"""
+${docSummary}
+"""
+
+STRICT RULES (zero-hallucination):
+- Only produce an entry for a document that actually contains a specific message with an identifiable sender. If a document is a list, a summary, or does not clearly show a single message's sender, SKIP it entirely -- do not invent one.
+- "tone" must be classified ONLY from the actual language in the excerpt: 'Hostile' | 'Neutral' | 'Cooperative'.
+- "content" must be a real excerpt or faithful paraphrase of the document's content, not invented text.
+- Do NOT invent response pairs, lag hours, or breach flags -- leave lagHours unset and breachOf42HourMandate false unless the document text itself states a specific delay or a reply time.
+- "sender" must be exactly 'Benjamin Hawkins', 'Sue-Anne Hawkins', or 'Third Party'.
+- "channel" is 'SMS' or 'Email' based on the document's fileType/content.
+
+Return strict JSON:
+{ "messages": [ { "id": "CM-<docId>", "sender": "Benjamin Hawkins" | "Sue-Anne Hawkins" | "Third Party", "recipient": "string", "timestamp": "YYYY-MM-DD", "channel": "SMS" | "Email", "content": "string", "tone": "Hostile" | "Neutral" | "Cooperative", "docRefId": "<docId>" } ] }
+`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' }
+      });
+
+      const parsed = JSON.parse(response.text?.trim() || '{}');
+      const messages = Array.isArray(parsed.messages) ? parsed.messages.filter((m: any) =>
+        m && m.id && m.sender && m.content && m.docRefId
+      ).map((m: any) => ({
+        id: m.id,
+        sender: m.sender,
+        recipient: m.recipient || (m.sender === 'Benjamin Hawkins' ? 'Sue-Anne Hawkins' : 'Benjamin Hawkins'),
+        timestamp: m.timestamp || '',
+        channel: m.channel === 'Email' ? 'Email' : 'SMS',
+        content: m.content,
+        tone: ['Hostile', 'Cooperative'].includes(m.tone) ? m.tone : 'Neutral',
+        breachOf42HourMandate: false,
+        docRefId: m.docRefId,
+      })) : [];
+
+      res.json({ messages });
+    } catch (err: any) {
+      console.warn('Gemini Communication Log generation error:', err?.message || err);
+      res.json(emptyResult);
+    }
+  });
+
   // 2. AI Review Issues & Concerns
   app.post('/api/gemini/review-issues', async (req, res) => {
     const { currentIssues, documents = [] } = req.body;
