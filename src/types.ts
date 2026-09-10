@@ -377,6 +377,10 @@ export interface ResponseRequirement {
 
   /** Children the request concerns, for per-child attribution. */
   childrenConcerned?: ChildName[];
+  /** Order 9's 42-hour clock, judged independently of substantive productivity. */
+  order9TimelinessMet?: boolean;
+  /** Set when a reply was timely but consisted only of abuse, evasion, or refusal to engage. */
+  contraventionType?: string;
 }
 
 export interface VerbatimExample {

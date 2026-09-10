@@ -31,6 +31,105 @@ function getAiClient(): GoogleGenAI | null {
   return aiClient;
 }
 
+// Splits long document text into overlapping windows so entity/event
+// extraction sees content that would otherwise fall outside a single
+// prompt's effective attention span -- a breach or event buried deep in a
+// long SMS export or affidavit must not go unseen just because it sat past
+// an early truncation point. ~4 characters per token, so 6000 chars is
+// roughly the requested 1,500-token minimum window, with an ~800-char
+// (~200-token) overlap between windows so a passage straddling a boundary
+// is never split away from all of its context.
+function chunkTextForExtraction(text: string, chunkChars = 6000, overlapChars = 800): string[] {
+  if (!text) return [''];
+  if (text.length <= chunkChars) return [text];
+  const chunks: string[] = [];
+  let start = 0;
+  while (start < text.length) {
+    const end = Math.min(start + chunkChars, text.length);
+    chunks.push(text.slice(start, end));
+    if (end >= text.length) break;
+    start = end - overlapChars;
+  }
+  return chunks;
+}
+
+const OCR_SEVERITY_RANK: Record<string, number> = { Severe: 3, Moderate: 2, Minor: 1 };
+const OCR_PRODUCTIVITY_RANK: Record<string, number> = { 'Non-Productive': 3, 'Partially Productive': 2, Productive: 1, Unassessed: 0 };
+
+// Merges the per-chunk OCR/extraction results produced by chunkTextForExtraction
+// back into a single document-level result. Boolean/severity findings (a breach,
+// a non-productive communication) are unioned across chunks and the most severe
+// finding wins, since missing a contravention buried in one window is the exact
+// failure mode this chunking exists to prevent; descriptive single-document
+// fields fall back to the first chunk, which normally carries the document header.
+function mergeOcrChunkResults(results: any[], fallback: any): any {
+  if (results.length === 0) return {};
+  if (results.length === 1) return results[0];
+
+  const base = results[0];
+
+  const breachResults = results.filter(r => r && r.hasBreach);
+  const hasBreach = breachResults.length > 0;
+  const breachSource = breachResults.length > 0
+    ? breachResults.reduce((best, r) => (OCR_SEVERITY_RANK[r.breachSeverity] || 0) > (OCR_SEVERITY_RANK[best.breachSeverity] || 0) ? r : best, breachResults[0])
+    : base;
+
+  const factorSet = new Set<string>();
+  results.forEach(r => {
+    if (r && r.s60CCFactorRef) {
+      String(r.s60CCFactorRef).split(';').map((s: string) => s.trim()).filter(Boolean).forEach((f: string) => factorSet.add(f));
+    }
+  });
+
+  const productivitySource = results.reduce((worst, r) =>
+    (OCR_PRODUCTIVITY_RANK[r && r.communicationProductivity] || 0) > (OCR_PRODUCTIVITY_RANK[worst && worst.communicationProductivity] || 0) ? r : worst
+  , base);
+
+  const responseSource = results.find(r => r && r.requiresResponse) || base;
+
+  const tagSet = new Set<string>();
+  const keyFactSet = new Set<string>();
+  const markerSet = new Set<string>();
+  const childrenSet = new Set<string>();
+  const childImpacts: any[] = [];
+  results.forEach(r => {
+    (r?.tags || []).forEach((t: string) => tagSet.add(t));
+    (r?.keyFacts || []).forEach((k: string) => keyFactSet.add(k));
+    (r?.nonProductiveMarkers || []).forEach((m: string) => markerSet.add(m));
+    (r?.childrenMentioned || []).forEach((c: string) => childrenSet.add(c));
+    (r?.childImpacts || []).forEach((ci: any) => childImpacts.push(ci));
+  });
+
+  return {
+    ...base,
+    hasBreach,
+    breachedOrderNumber: hasBreach ? (breachSource.breachedOrderNumber ?? base.breachedOrderNumber) : base.breachedOrderNumber,
+    breachSeverity: hasBreach ? (breachSource.breachSeverity ?? base.breachSeverity) : base.breachSeverity,
+    breachSummary: hasBreach ? (breachSource.breachSummary ?? base.breachSummary) : base.breachSummary,
+    s60CCFactorRef: factorSet.size > 0 ? Array.from(factorSet).join('; ') : base.s60CCFactorRef,
+    communicationProductivity: (productivitySource && productivitySource.communicationProductivity) || base.communicationProductivity,
+    nonProductiveMarkers: Array.from(markerSet),
+    substantiveResponse: (productivitySource ? productivitySource.substantiveResponse : undefined) ?? base.substantiveResponse,
+    productivityRationale: (productivitySource && productivitySource.productivityRationale) || base.productivityRationale,
+    order9TimelinessMet: (productivitySource ? productivitySource.order9TimelinessMet : undefined) ?? base.order9TimelinessMet,
+    contraventionType: (productivitySource && productivitySource.contraventionType) || base.contraventionType || null,
+    requiresResponse: Boolean(responseSource && responseSource.requiresResponse),
+    responseFormat: (responseSource && responseSource.responseFormat) || base.responseFormat,
+    informationRequested: (responseSource && responseSource.informationRequested) || base.informationRequested,
+    responseDetails: (responseSource && responseSource.responseDetails) || base.responseDetails,
+    responseDate: (responseSource ? responseSource.responseDate : undefined) ?? base.responseDate,
+    daysOverdue: (responseSource ? responseSource.daysOverdue : undefined) ?? base.daysOverdue,
+    hoursOverdue: (responseSource ? responseSource.hoursOverdue : undefined) ?? base.hoursOverdue,
+    responseStatus: (responseSource && responseSource.responseStatus) || base.responseStatus,
+    statutoryBasis: (responseSource && responseSource.statutoryBasis) || base.statutoryBasis,
+    tags: Array.from(tagSet).slice(0, 12),
+    keyFacts: Array.from(keyFactSet).slice(0, 8),
+    childrenMentioned: Array.from(childrenSet),
+    childImpacts: childImpacts.slice(0, 20),
+    extractedFullText: fallback.extractedFullText,
+  };
+}
+
 const CASE_CONTEXT_PROMPT = `
 YOU ARE THE CORE INTELLIGENCE ENGINE FOR FAMILY COURT OF WESTERN AUSTRALIA (FCWA) CASE 4344/2023.
 CRITICAL MANDATES:
@@ -927,7 +1026,11 @@ Return JSON:
         breachSeverity,
         breachSummary,
         bestInterestsFactor: statutoryFactor,
-        createTimelineEvent: hasBreach || category === 'Medical' || category === 'Legal/Court',
+        // Timeline generation is decoupled from breach status: any objective
+        // parental act, school milestone, medical event, or third-party
+        // assessment bearing on a s60CC factor is chronology-worthy even when
+        // fully compliant, not just documents that happen to show a breach.
+        createTimelineEvent: hasBreach || category === 'Medical' || category === 'Legal/Court' || category === 'Education' || category === 'Extracurricular',
         timelineEvent: {
           id: `EVT-AUTO-${Date.now().toString().slice(-4)}`,
           date: docDate,
@@ -996,6 +1099,13 @@ REQUIREMENTS FOR RECORDING:
    - Order 27 (s 68Q FLA inconsistency: parenting orders prevail over Perth Magistrates Court Conduct Agreement Order MC/CIV/PER/RO/205/2024)
 9. Assign the next sequential Annexure Number: "BJH-${existingDocCount + 1}".
 10. Determine if this should automatically be recorded as a Timeline Event in the Case 4344/2023 Chronology.
+    Set "createTimelineEvent": true if EITHER:
+      (a) the document evidences a breach/contravention of any operative order; OR
+      (b) the document establishes an objective parental act, school milestone, medical
+          event, or third-party assessment bearing on a s 60CC best-interests factor --
+          even where it shows full compliance and no breach at all.
+    Do NOT require "hasBreach" to be true before setting "createTimelineEvent" true. A
+    fully compliant medical review, school report, or court filing is still chronology-worthy.
 
 Respond with strict JSON:
 {
@@ -1155,6 +1265,8 @@ Respond with strict JSON:
         : (requiresRespFallback ? 'Unassessed' : 'Productive'),
       nonProductiveMarkers: hasReplied ? ['No Substantive Answer'] : [],
       substantiveResponse: hasReplied ? false : null,
+      order9TimelinessMet: requiresRespFallback ? (hasReplied ? true : null) : null,
+      contraventionType: (hasReplied && requiresRespFallback) ? 'Contravention in Substance / Non-Productive Evasion' : null,
       productivityRationale: hasReplied
         ? 'A reply was recorded but it supplied none of the information requested. Order 9 requires a response in substance, not merely a message within the window.'
         : '',
@@ -1173,18 +1285,29 @@ Respond with strict JSON:
     }
 
     try {
-      const prompt = `
+      const buildOcrPrompt = (chunkText: string, chunkIndex: number, chunkCount: number) => `
 ${CASE_CONTEXT_PROMPT}
 
 TASK: MULTIMODAL OCR, LEGAL NORMALIZATION & CROSS-SECTION INTELLIGENCE EXTRACTOR
 Analyze this document for Family Court Case 4344/2023 (Hawkins v Hawkins).
 Origin File Name: "${origin}"
 MIME Type: "${mimeType}"
+${chunkCount > 1 ? `This is window ${chunkIndex + 1} of ${chunkCount} from one longer document, split
+with overlap so nothing at a window boundary is missed. Extract from this window on its own
+merits -- a later window may still hold the operative finding even if this one looks routine.` : ''}
 
 TEXT / TRANSCRIPT (if available):
 """
-${textToAnalyze.slice(0, 15000)}
+${chunkText}
 """
+
+FULL-DOCUMENT SCANNING -- read the entire text above, not just the opening paragraph,
+cover page, or formal filing header. Long documents (affidavits, SMS/message logs, police
+incident reports, court orders) frequently carry their most probative content deep in the
+body or in an annexure. Actively search the full text for operative anchor terms wherever
+they appear -- "contravention", "prescribed", "positive", "refusal", "police", "unattended",
+"inconsistent", "test result", "withhold", "evade" -- and build "summaryExcerpt" from the
+passage containing the substantive finding or concern, not merely the opening lines.
 
 Extract comprehensive, court-admissible legal metadata across all sections:
 1. Document Identification:
@@ -1193,9 +1316,11 @@ Extract comprehensive, court-admissible legal metadata across all sections:
    - "documentDate": YYYY-MM-DD (extract true creation/incident date)
    - "sourceOrigin": Official institution or party author
    - "evidentiaryWeight": "Sworn/Official" | "Third-Party Objective" | "Unverified Claim"
-   - "summaryExcerpt": concise quote/summary of probative facts
+   - "summaryExcerpt": concise quote/summary of probative facts, drawn from wherever in the
+     document the finding actually sits
    - "extractedFullText": full readable text transcribed from document
-   - "tags": array of 3-7 specific searchable legal tags
+   - "tags": array of 3-7 specific searchable legal tags. Prefix any adverse-behaviour finding
+     described in section 3 below with "Concern: " (e.g. "Concern: Missed Drug Test")
    - "keyFacts": array of 2-4 bullet points
 
 2. Response Requirement Review (Order 9 42h Mandate & Order 11 Medical Notice):
@@ -1209,26 +1334,84 @@ Extract comprehensive, court-admissible legal metadata across all sections:
    - "responseStatus": "waiting" or "completed"
    - "statutoryBasis": e.g. "Order 9 (42-Hour Written Communication Mandate)" or "Order 11 (Significant Medical Notice)"
 
-3. Contravention & Timeline Event Detection:
+3. Contravention, Timeline Event & Concern Detection:
    - "hasBreach": boolean (does this document prove an order violation such as Order 4 & 5 changeover obstruction, Order 11/12 medical concealment, Order 8/9 communication delay/non-SMS, Order 7/22 travel/address notice failure?)
    - "breachedOrderNumber": string or null (e.g. "Order 9", "Order 4 & 5", "Order 11 & 12")
    - "breachSeverity": "Minor" | "Moderate" | "Severe" | null
    - "breachSummary": string or null
+   - "createTimelineEvent": true if EITHER:
+       (a) the document evidences a breach/contravention of any operative order; OR
+       (b) the document establishes an objective parental act, school milestone, medical
+           event, or third-party assessment bearing on a s 60CC best-interests factor --
+           even where it shows full compliance and no breach at all (e.g. a 21-day holiday
+           notice served under Order 6(a), a 24-hour school notice under Order 15, a positive
+           educational/developmental milestone, a third-party medical or therapeutic
+           intervention, or a verifiable attempt to engage or resolve a dispute).
+     Do NOT require "hasBreach" to be true before setting "createTimelineEvent" true. A fully
+     compliant medical review, school report, holiday notice, or court filing is still
+     chronology-worthy, and helps establish parental capacity under s60CC(2)(d) even when
+     "hasBreach" is false.
+   - Adverse-behaviour concerns: log every adverse, uncooperative, or non-compliant behaviour
+     even where it falls short of a clear order breach, by adding a "Concern: " tag (see
+     section 1) and a keyFacts bullet naming it, whenever the document evidences: a missed,
+     refused, or unacknowledged drug/alcohol test; evasion of personal service of court
+     documents (e.g. ignored process-server calling cards, avoiding premises); a unilateral
+     change to a child's prescribed medication without documented prior medical consultation;
+     communication non-responsiveness, or device use to bypass orders or denigrate the other
+     party; or a handover refusal, or a child left unattended contrary to orders.
+   - Substance testing status (when the document is or references an order/request directing a
+     drug or alcohol test): check for a laboratory report, medical certificate, or written
+     acknowledgment in the record confirming the test was attended and completed.
+       * If present: record it as completed in breachSummary/keyFacts, noting the detected
+         substances and reported levels if stated.
+       * If absent: do NOT infer completion. Record in keyFacts (and tag "Concern: Missed Drug
+         Test") that testing was "NOT UNDERTAKEN -- ordered/requested, but no test report or
+         written acknowledgment of completion exists in the record."
+     Hair and standard substance tests only show a multi-month detection window and cannot
+     establish the exact date, hour, or circumstance of ingestion. Do NOT allege or imply that
+     a substance was taken in the children's presence or during their care time unless an
+     independent eyewitness account or police report directly corroborates it -- state only
+     what the test/record actually proves. The absence of a precise timestamp does not negate
+     the finding: keep it (or its absence) visible as a "Parental Capacity / Protective Risk"
+     concern under s60CC(2)(d) and s60CC(2)(a) without attaching unsupported claims about the
+     children being present when consumed.
 
-4. Statutory Court Criteria Alignment:
-   - "s60CCFactorRef": which FLA s 60CC best interests factor this directly impacts:
+4. Statutory Court Criteria Alignment (MANDATORY MAPPING -- do not leave a factor unevidenced
+   when the document text corroborates it; apply every factor that matches, not just one):
+   - "s60CCFactorRef": one or more of the following, joined with "; " when more than one
+     directly applies:
      "s60CC(2)(a) - Safety from harm & neglect" |
-     "s60CC(2)(b) - Views expressed by children" |
+     "s60CC(2A)(a) - History of family violence, abuse or neglect" |
+     "s60CC(2)(b) - Views expressed by the child" |
      "s60CC(2)(c) - Developmental, psychological, emotional and cultural needs" |
      "s60CC(2)(d) - Capacity of each parent" |
      "s60CC(2)(e) - Benefit of relationship with each parent" |
+     "s60CC(2A)(b) - Effect of existing family violence orders/arrangements" |
+     "s61DAA - Consultation required on major long-term issues" |
      "s60CC(2)(f) - Any other relevant circumstances"
+     Direct-evidence mapping rules:
+     * Police involvement, Form 4 notices, callout logs, an unacknowledged/missed drug test,
+       a positive toxicology result, or a child-welfare agency memorandum (e.g. a Department
+       of Communities record) -> tag BOTH "s60CC(2)(a)" AND "s60CC(2A)(a)".
+     * A stated child preference or feeling, however conveyed -- spoken, written in schoolwork,
+       or relayed through a device/message -> tag "s60CC(2)(b)".
+     * School reports, attendance records, IEP or therapy notes, or medication administration
+       records (including a missed or altered dose) -> tag "s60CC(2)(c)".
+     * Evidence of a parent meeting medical or educational needs, following court-ordered
+       routines, and cooperating -- or, conversely, of substance interference or evasion of
+       service -> tag "s60CC(2)(d)".
+     * Any unilateral change to schooling, medication, or residential care made without
+       documented consultation -> tag BOTH "s60CC(2)(d)" AND "s61DAA".
+     * A cross-jurisdictional conduct agreement order, a police incident/report number, or an
+       inconsistency order -> tag BOTH "s60CC(2A)(a)" AND "s60CC(2A)(b)".
 
-5. Communication Productivity Assessment (SEPARATE AXIS FROM TONE AND FROM TIMING):
-   Where this document is or contains a communication, assess whether it moved a
-   parenting question forward. A message can be polite AND arrive within the
-   42-hour Order 9 window and still be Non-Productive because it answered
-   nothing. Judge substance only.
+5. Communication Productivity Assessment (DUAL-AXIS: SEPARATE FROM TONE, AND TIMELINESS
+   SEPARATE FROM SUBSTANCE):
+   Where this document is or contains a communication, assess it on two independent axes.
+   A message can arrive within the 42-hour Order 9 window and still fail its substantive
+   obligation because it answered nothing.
+   - "order9TimelinessMet": boolean | null -- did a reply arrive within the 42-hour Order 9
+     window? (null if this document is not itself a reply subject to that clock)
    - "communicationProductivity": "Productive" | "Partially Productive" | "Non-Productive" | "Unassessed"
    - "nonProductiveMarkers": array of zero or more of:
        "No Substantive Answer", "Deflection / Counter-Accusation",
@@ -1236,16 +1419,33 @@ Extract comprehensive, court-admissible legal metadata across all sections:
        "Stonewalling / Refusal to Engage", "Repetition of Settled Matter",
        "Unilateral Directive (No Consultation)", "No Child-Related Content",
        "Emotional Escalation", "Volume Without Information", "Deferred Without Date"
-   - "substantiveResponse": boolean | null (null if not a reply)
-   - "productivityRationale": one or two sentences explaining the classification.
-     If a reply was timely but empty, say so explicitly — that is an Order 9
-     contravention in substance rather than in timing.
+   - "substantiveResponse": boolean | null (null if not a reply) -- does the reply genuinely
+     address the specific parenting inquiry, medical consent, or logistics raised?
+   - "productivityRationale": one or two sentences explaining the classification. If a reply
+     was timely but empty, abusive, or evasive, say so explicitly.
+   - "contraventionType": string | null. Set to exactly
+     "Contravention in Substance / Non-Productive Evasion" when order9TimelinessMet is true
+     BUT the reply consists only of abuse, insults, deflection, or a refusal to engage with the
+     actual parenting question raised (substantiveResponse: false). Otherwise null.
 
-6. Per-Child Attribution (CRITICAL — do NOT attribute to both children by default):
-   Attribute only to a child the document actually names or unambiguously concerns.
-   If the source says "the children" generally, attribute to both and mark
-   directlyEvidenced false. If it names only one, attribute only to that one.
-   - "childrenMentioned": array containing "Isabella" and/or "Mason" (may be empty)
+6. Per-Child Attribution & Category Population (CRITICAL):
+   Do not default to attributing every event to both children, but do NOT leave "children": []
+   when the event plainly bears on the household environment, care arrangements, or a parent's
+   capacity to care for the children generally -- that household-level impact concerns both
+   children even where neither is individually named.
+   - If a parent tests positive for a prohibited substance, misses/evades an ordered test, or
+     evades personal service, attribute the event to BOTH Isabella and Mason under
+     "Safety & Wellbeing" or "Care Time & Handover".
+   - Where the record distinguishes between the children (naming one but not the other -- e.g.
+     one child's medication versus the other child's device/phone use), generate discrete
+     "childImpacts" entries per child. NEVER group them as one generic "children" impact.
+   - Route developmental/therapeutic content (speech pathology, occupational therapy, IEPs,
+     tutoring, psychological intervention) to "Developmental & Therapy", and sports, school
+     carnivals, arts/drama events, playdates, or peer social content to
+     "Extracurricular & Social". Do NOT let a general progress report sit only in
+     "Education & School" when it names a specific therapeutic or social finding for a child.
+   - "childrenMentioned": array containing "Isabella" and/or "Mason" (may be empty only when the
+     document has no bearing on either child at all)
    - "childImpacts": array of:
      {
        "child": "Isabella" | "Mason",
@@ -1263,27 +1463,44 @@ Extract comprehensive, court-admissible legal metadata across all sections:
 Return strict JSON matching these fields.
 `;
 
-      const contents = fileData ? [
-        {
-          inlineData: {
-            mimeType: mimeType || 'application/pdf',
-            data: fileData,
-          }
-        },
-        {
-          text: prompt
-        }
-      ] : prompt;
+      // Full-document chunking: split long text into overlapping ~1,500-token windows
+      // (chunkTextForExtraction) so a breach or finding buried deep in a long SMS export
+      // or affidavit is not silently dropped by a single prompt's effective attention span.
+      const textChunks = fileData ? [textToAnalyze] : chunkTextForExtraction(textToAnalyze);
+      const chunkCount = textChunks.length;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents,
-        config: {
-          responseMimeType: 'application/json',
-        }
-      });
+      const chunkResults = await Promise.all(textChunks.map(async (chunkText, chunkIndex) => {
+        try {
+          const prompt = buildOcrPrompt(chunkText, chunkIndex, chunkCount);
+          const contents = fileData ? [
+            {
+              inlineData: {
+                mimeType: mimeType || 'application/pdf',
+                data: fileData,
+              }
+            },
+            {
+              text: prompt
+            }
+          ] : prompt;
 
-      const parsed = JSON.parse(response.text?.trim() || '{}');
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.8-flash',
+            contents,
+            config: {
+              responseMimeType: 'application/json',
+            }
+          });
+
+          return JSON.parse(response.text?.trim() || '{}');
+        } catch (chunkErr: any) {
+          console.warn(`Gemini OCR chunk ${chunkIndex + 1}/${chunkCount} failed, skipping chunk:`, chunkErr?.message || chunkErr);
+          return null;
+        }
+      }));
+
+      const validChunkResults = chunkResults.filter((r): r is any => r !== null && typeof r === 'object');
+      const parsed = mergeOcrChunkResults(validChunkResults, fallbackOcr);
       res.json({ ...fallbackOcr, ...parsed });
     } catch (err: any) {
       console.warn('Gemini OCR API error, using deterministic metadata schema:', err?.message || err);
@@ -1402,7 +1619,9 @@ Return strict JSON matching these fields.
             nonProductiveMarkers: c.productivityAssessment?.markers || [],
             productivityRationale: c.productivityAssessment?.rationale
               || "Timeliness and substance are tracked separately: a reply inside the 42-hour window that supplies none of the information requested has not discharged Order 9.",
-            childrenConcerned: c.childrenReferenced || []
+            childrenConcerned: c.childrenReferenced || [],
+            order9TimelinessMet: c.lagHours != null ? !isLate : null,
+            contraventionType: (!isLate && isNonProductive) ? "Contravention in Substance / Non-Productive Evasion" : null
           });
         }
       });
@@ -1475,6 +1694,13 @@ For each item requiring a response, return:
 20. "productivityRationale": one or two sentences
 21. "childrenConcerned": array of "Isabella" and/or "Mason" — only children the
     request actually concerns
+22. "order9TimelinessMet": boolean -- did a reply arrive within the 42-hour
+    Order 9 window? Judge this independently of substance.
+23. "contraventionType": string or null -- set to exactly
+    "Contravention in Substance / Non-Productive Evasion" when
+    order9TimelinessMet is true BUT substantiveResponse is false (a timely
+    reply that consisted only of abuse, evasion, or refusal to engage).
+    Otherwise null.
 
 IMPORTANT: also raise requirements for communications that were answered ON TIME
 but non-productively. Reviewing latency alone misses the larger pattern.
@@ -1498,7 +1724,14 @@ Return strict JSON:
       "sourceCitation": "string",
       "statutoryBasis": "string",
       "priority": "Critical" | "High" | "Routine",
-      "aiReviewRationale": "string"
+      "aiReviewRationale": "string",
+      "responseProductivity": "Productive" | "Partially Productive" | "Non-Productive" | "Unassessed",
+      "substantiveResponse": boolean,
+      "nonProductiveMarkers": ["string"],
+      "productivityRationale": "string",
+      "childrenConcerned": ["string"],
+      "order9TimelinessMet": boolean,
+      "contraventionType": "string or null"
     }
   ],
   "aiNotes": "string summary"
