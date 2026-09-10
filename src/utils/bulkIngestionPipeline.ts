@@ -14,6 +14,21 @@ import { performOcr, isImageFile, OcrResult } from '../services/ocrService';
 import { classifyProductivity, detectChildrenReferenced } from './communicationProductivity';
 import { inferChildCategory } from './childTimelineService';
 
+// Infers a concrete fileType for a Direct Communication document from its
+// actual content, since the DocumentRecord fileType union has no generic
+// "communication" value. Defaults to 'email' (the more common ingestion
+// case -- exported email threads/PDFs) and only classifies as 'sms' when
+// the content itself looks like a short text-message exchange.
+function inferCommsFileType(text: string, sourceOrigin: string): 'sms' | 'email' {
+  const t = `${text} ${sourceOrigin}`.toLowerCase();
+  if (/\bsms\b|text message|imessage|\btexted\b|\btext thread\b/.test(t)) return 'sms';
+  if (/\bfrom:|\bto:|\bsubject:|\bsent:|@[\w.-]+\.(com|org|net|gov|edu)/.test(t)) return 'email';
+  // No clear header/keyword signal: short excerpts read like a text exchange,
+  // longer ones like an email thread.
+  return text.length < 400 ? 'sms' : 'email';
+}
+
+
 export interface IngestedFileResult {
   document: DocumentRecord;
   responseRequirement: ResponseRequirement | null;
@@ -175,7 +190,12 @@ export async function ingestFileEndToEnd(file: File, docSequenceNumber: number):
     sourceOrigin: parsedMetadata.sourceOrigin,
     evidentiaryWeight: parsedMetadata.evidentiaryWeight,
     annexureNumber,
-    fileType: parsedMetadata.category === 'Legal/Court' ? 'court_order' : parsedMetadata.category === 'Medical' ? 'medical_report' : parsedMetadata.category === 'Education' ? 'school_record' : (ocrResult ? 'court_order' : 'pdf'),
+    fileType: parsedMetadata.category === 'Legal/Court' ? 'court_order'
+      : parsedMetadata.category === 'Medical' ? 'medical_report'
+      : parsedMetadata.category === 'Education' ? 'school_record'
+      : parsedMetadata.category === 'Financial' ? 'financial'
+      : parsedMetadata.category === 'Direct Communication' ? inferCommsFileType(textPayload || parsedMetadata.excerpt || '', parsedMetadata.sourceOrigin || '')
+      : 'pdf',
     fileSize: ocrResult ? `${(Math.max(12, Math.round((textPayload.length * 0.8) / 100)) / 10).toFixed(1)} KB (OCR)` : `${(Math.max(1, Math.round(file.size / 1024)) / 1024).toFixed(2)} MB`,
     excerpt: parsedMetadata.excerpt || 'Verified evidence record.',
     fullText: textPayload || parsedMetadata.excerpt || 'Verified document content.',

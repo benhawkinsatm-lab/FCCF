@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   BarChart3, 
   Clock, 
@@ -40,6 +40,7 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
   const [productivityFilter, setProductivityFilter] = useState<'All' | CommunicationProductivity>('All');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const autoGenerateAttempted = useRef(false);
 
   const handleGenerateFromDocuments = async () => {
     setIsGenerating(true);
@@ -64,6 +65,24 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
       setIsGenerating(false);
     }
   };
+
+  // Auto-populate on first load: a user landing on this page with real SMS/email
+  // documents already ingested should not have to notice and click a generation
+  // button before seeing anything. This fires once per mount, only when the
+  // ledger is empty and there is at least one candidate communication document,
+  // so it never overrides a ledger the user (or a prior generation) already
+  // populated, and never loops if a genuine "nothing extractable" result comes back.
+  useEffect(() => {
+    if (autoGenerateAttempted.current) return;
+    if (messages.length > 0) return;
+    const hasCandidateDocs = documents.some(
+      d => d.category === 'Direct Communication' || d.fileType === 'sms' || d.fileType === 'email'
+    );
+    if (!hasCandidateDocs) return;
+    autoGenerateAttempted.current = true;
+    handleGenerateFromDocuments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documents, messages.length]);
 
   const motherMessages = messages.filter(m => m.sender === 'Sue-Anne Hawkins');
   const fatherMessages = messages.filter(m => m.sender === 'Benjamin Hawkins');
@@ -359,12 +378,26 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
           <span>Verified Telco &amp; Email Records</span>
         </div>
 
-        {messages.length === 0 && (
+        {messages.length === 0 && isGenerating && (
+          <div className="flex flex-col items-center justify-center text-center py-16 px-6 bg-white border border-slate-200 rounded-xl">
+            <Loader2 className="w-10 h-10 text-indigo-400 mb-3 animate-spin" />
+            <h2 className="text-sm font-bold text-slate-900">Analyzing Ingested Documents&hellip;</h2>
+            <p className="text-xs text-slate-500 mt-1 max-w-md">
+              Scanning SMS and email records already in the case for communications to classify.
+            </p>
+          </div>
+        )}
+
+        {messages.length === 0 && !isGenerating && (
           <div className="flex flex-col items-center justify-center text-center py-16 px-6 bg-white border border-slate-200 rounded-xl">
             <MessageSquareOff className="w-10 h-10 text-slate-300 mb-3" />
-            <h2 className="text-sm font-bold text-slate-900">No Communications Recorded Yet</h2>
+            <h2 className="text-sm font-bold text-slate-900">
+              {generationError ? 'No Communications Extracted' : 'No Communications Recorded Yet'}
+            </h2>
             <p className="text-xs text-slate-500 mt-1 max-w-md">
-              This ledger is populated from SMS and email records ingested into the case (via document ingestion), then classified with &quot;Generate from Documents&quot; above. There is nothing to display until then.
+              {generationError
+                ? generationError
+                : 'This ledger is populated from SMS and email records ingested into the case (via document ingestion), then classified automatically. There is nothing to display until at least one SMS/email document is ingested -- use "Generate from Documents" above to retry.'}
             </p>
           </div>
         )}
