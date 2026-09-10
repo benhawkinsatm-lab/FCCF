@@ -1326,6 +1326,34 @@ Return strict JSON matching these fields.
     }
   });
 
+  // Delete one file from the local upload folder once it has been
+  // successfully ingested through the bulk-import pipeline, so a folder the
+  // user keeps dropping new files into doesn't re-import the same ones on
+  // every run. Path-traversal safe: resolves the requested name against
+  // UPLOAD_FOLDER and refuses anything that resolves outside it.
+  app.delete('/api/local-upload/file', (req, res) => {
+    try {
+      const name = String(req.query.name || '');
+      if (!name || SKIP_UPLOAD_FILES.has(name) || name.startsWith('.')) {
+        return res.status(400).json({ deleted: false, error: 'Invalid file name.' });
+      }
+      const target = path.join(UPLOAD_FOLDER, name);
+      const resolvedTarget = path.resolve(target);
+      const resolvedFolder = path.resolve(UPLOAD_FOLDER);
+      if (!resolvedTarget.startsWith(resolvedFolder + path.sep)) {
+        return res.status(400).json({ deleted: false, error: 'Invalid file path.' });
+      }
+      if (!fs.existsSync(resolvedTarget)) {
+        return res.json({ deleted: false, error: 'File no longer exists.' });
+      }
+      fs.unlinkSync(resolvedTarget);
+      res.json({ deleted: true });
+    } catch (err: any) {
+      console.warn('Failed to delete local upload file:', err?.message || err);
+      res.status(500).json({ deleted: false, error: 'Could not delete the file.' });
+    }
+  });
+
   // AI Knowledge Base Response Requirement Review Engine
   app.post('/api/gemini/review-responses', async (req: express.Request, res: express.Response) => {
     const { documents = [], communicationLogs = [], existingRequirements = [] } = req.body;

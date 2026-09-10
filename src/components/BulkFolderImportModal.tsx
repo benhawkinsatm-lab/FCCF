@@ -9,7 +9,7 @@ interface LocalUploadFile {
   modifiedAt: string;
 }
 
-type FileStatus = 'pending' | 'processing' | 'done' | 'error';
+type FileStatus = 'pending' | 'processing' | 'done' | 'done-kept' | 'error';
 
 interface FileProgress {
   name: string;
@@ -111,7 +111,21 @@ export const BulkFolderImportModal: React.FC<BulkFolderImportModalProps> = ({
           evtCount += 1;
         }
 
-        setProgress(prev => prev.map((p, idx) => idx === i ? { ...p, status: 'done' } : p));
+        // File is fully ingested (OCR'd, AI-processed, and added to the case
+        // record) -- clean it up from the local upload folder so re-running
+        // a bulk import against the same folder doesn't re-process it. A
+        // failed delete does not undo the ingestion above; it just leaves
+        // the source file behind for the user to remove manually.
+        let deleted = false;
+        try {
+          const delRes = await fetch(`/api/local-upload/file?name=${encodeURIComponent(f.name)}`, { method: 'DELETE' });
+          const delJson = await delRes.json().catch(() => ({}));
+          deleted = delRes.ok && delJson?.deleted === true;
+        } catch {
+          deleted = false;
+        }
+
+        setProgress(prev => prev.map((p, idx) => idx === i ? { ...p, status: deleted ? 'done' : 'done-kept' } : p));
       } catch (err: any) {
         setProgress(prev => prev.map((p, idx) => idx === i ? { ...p, status: 'error', error: err?.message || 'Ingestion failed' } : p));
       }
@@ -121,7 +135,7 @@ export const BulkFolderImportModal: React.FC<BulkFolderImportModalProps> = ({
     setIsRunning(false);
   };
 
-  const doneCount = progress.filter(p => p.status === 'done').length;
+  const doneCount = progress.filter(p => p.status === 'done' || p.status === 'done-kept').length;
   const errorCount = progress.filter(p => p.status === 'error').length;
 
   return (
@@ -190,6 +204,12 @@ export const BulkFolderImportModal: React.FC<BulkFolderImportModalProps> = ({
                   {p.status === 'pending' && <span className="text-slate-400 shrink-0 ml-2">Queued</span>}
                   {p.status === 'processing' && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600 shrink-0 ml-2" />}
                   {p.status === 'done' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 ml-2" />}
+                  {p.status === 'done-kept' && (
+                    <span className="text-amber-600 shrink-0 ml-2 flex items-center gap-1" title="Ingested successfully, but the source file could not be removed from the upload folder">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span className="text-[11px]">Kept</span>
+                    </span>
+                  )}
                   {p.status === 'error' && (
                     <span className="text-rose-600 shrink-0 ml-2 flex items-center gap-1" title={p.error}>
                       <AlertCircle className="w-3.5 h-3.5" />
