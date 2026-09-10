@@ -37,6 +37,7 @@ services:
       - DATA_DIR=/app/data
     volumes:
       - app_data:/app/data
+      - ./public/upload:/app/public/upload
     depends_on:
       postgres:
         condition: service_healthy

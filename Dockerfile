@@ -28,8 +28,9 @@ RUN npm ci --omit=dev && npm cache clean --force
 # Copy built application output from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Create persistent storage mount directory
-RUN mkdir -p /app/data && chown -R node:node /app
+# Create persistent storage mount directory (public/upload is where a host
+# folder is bind-mounted in docker-compose.yml for the bulk-import feature)
+RUN mkdir -p /app/data /app/public/upload && chown -R node:node /app
 
 USER node
 

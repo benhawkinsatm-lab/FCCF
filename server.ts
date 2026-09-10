@@ -1296,12 +1296,16 @@ Return strict JSON matching these fields.
 
   // Bulk local-folder import: list files sitting in public/upload so the
   // client can pull each one through the same OCR + AI ingestion pipeline
-  // used for a single manual upload. Files themselves are served as static
-  // assets from /upload/<name> (Vite's publicDir in dev, copied into dist
-  // on build) -- this endpoint only provides the directory listing, which
-  // static serving does not expose on its own.
+  // used for a single manual upload. In dev, Vite's publicDir already serves
+  // these at /upload/<name>; in the production build that dir is only copied
+  // into dist/ once, at build time, so it goes stale the moment someone drops
+  // a new file in after the image is built. Serving directly from the live
+  // upload folder here (registered before the dist catch-all below) keeps
+  // both the listing and the files themselves current without a rebuild --
+  // this is what lets a bind-mounted host folder work in production too.
   const UPLOAD_FOLDER = path.join(process.cwd(), 'public', 'upload');
   const SKIP_UPLOAD_FILES = new Set(['.gitkeep', '.DS_Store', 'Thumbs.db']);
+  app.use('/upload', express.static(UPLOAD_FOLDER));
 
   app.get('/api/local-upload/list', (req, res) => {
     try {

@@ -319,6 +319,17 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
     return { fridayChangeovers, communicationBlackouts, publicDenigration, medicalTravelEvasion };
   }, [allBreaches]);
 
+  // Real matching breach records per pattern, sorted chronologically (never hardcoded narratives)
+  const patternMatches = useMemo(() => {
+    const sortByDate = (arr: TimelineEvent[]) => [...arr].sort((a, b) => a.date.localeCompare(b.date));
+    return {
+      fridayChangeovers: sortByDate(allBreaches.filter(b => new Date(b.date).getDay() === 5 || b.breachedOrderNumber?.includes('Order 4.2'))),
+      communicationBlackouts: sortByDate(allBreaches.filter(b => b.breachedOrderNumber?.includes('Order 9.1'))),
+      publicDenigration: sortByDate(allBreaches.filter(b => b.breachedOrderNumber?.includes('Order 11.2'))),
+      medicalTravelEvasion: sortByDate(allBreaches.filter(b => b.breachedOrderNumber?.includes('Order 5.1') || b.breachedOrderNumber?.includes('Order 13.1'))),
+    };
+  }, [allBreaches]);
+
   // Category Breach Counts (across all breaches)
   const categoryBreachCounts = useMemo(() => {
     const counts: Record<ParentingOrderCategory, number> = {
@@ -499,6 +510,25 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
     return counts;
   }, [allBreaches]);
 
+  // Peak non-compliance day, derived from the real day-of-week distribution (never hardcoded)
+  const peakDayStats = useMemo(() => {
+    if (allBreaches.length === 0) return null;
+    return dayOfWeekStats.reduce((max, d) => (d.count > max.count ? d : max), dayOfWeekStats[0]);
+  }, [dayOfWeekStats, allBreaches.length]);
+
+  // Most-cited order, derived from the real per-order breakdown (never hardcoded)
+  const topOrderStats = useMemo(() => {
+    const entries = Object.entries(orderBreakdownStats).filter(([, count]) => count > 0);
+    if (entries.length === 0) return null;
+    const [order, count] = entries.reduce((max, e) => (e[1] > max[1] ? e : max), entries[0]);
+    return { order, count };
+  }, [orderBreakdownStats]);
+
+  // Distinct calendar days with a documented breach (real, never hardcoded)
+  const distinctBreachDayCount = useMemo(() => {
+    return new Set(allBreaches.map(b => b.date)).size;
+  }, [allBreaches]);
+
   // Copy Form 2 Schedule to Clipboard
   const handleCopySchedule = () => {
     const rows = allBreaches.map((b, i) => {
@@ -587,29 +617,41 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
 
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <span className="text-slate-500 text-xs font-medium block">Peak Non-Compliance Day</span>
-          <div className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold text-amber-600">Friday</span>
-            <span className="text-[11px] text-amber-600 font-semibold">(40%)</span>
-          </div>
-          <span className="text-[11px] text-slate-500 mt-0.5 block">14:00-15:30 Handover Window</span>
+          {peakDayStats && peakDayStats.count > 0 ? (
+            <>
+              <div className="mt-1 flex items-baseline gap-1.5">
+                <span className="text-2xl font-bold text-amber-600">{peakDayStats.day}</span>
+                <span className="text-[11px] text-amber-600 font-semibold">({peakDayStats.percentage}%)</span>
+              </div>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">{peakDayStats.count} of {allBreaches.length} documented breach{allBreaches.length === 1 ? '' : 'es'}</span>
+            </>
+          ) : (
+            <div className="mt-1 text-xs text-slate-400">No breaches logged yet</div>
+          )}
         </div>
 
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-slate-500 text-xs font-medium block">Order 9.1 Avg Comm Lag</span>
-          <div className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold text-purple-700">89.0h</span>
-            <span className="text-[11px] text-purple-600 font-semibold">Max: 126h</span>
-          </div>
-          <span className="text-[11px] text-slate-500 mt-0.5 block">Court Threshold: 42.0h</span>
+          <span className="text-slate-500 text-xs font-medium block">Most-Cited Order</span>
+          {topOrderStats ? (
+            <>
+              <div className="mt-1 flex items-baseline gap-1.5">
+                <span className="text-2xl font-bold text-purple-700">{topOrderStats.count}</span>
+                <span className="text-[11px] text-purple-600 font-semibold">Breaches</span>
+              </div>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">{topOrderStats.order}</span>
+            </>
+          ) : (
+            <div className="mt-1 text-xs text-slate-400">No breaches logged yet</div>
+          )}
         </div>
 
         <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-slate-500 text-xs font-medium block">Care Schedule Disrupted</span>
+          <span className="text-slate-500 text-xs font-medium block">Days With Documented Breaches</span>
           <div className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold text-slate-800">9 Days</span>
-            <span className="text-[11px] text-slate-500">Total Lost</span>
+            <span className="text-2xl font-bold text-slate-800">{distinctBreachDayCount}</span>
+            <span className="text-[11px] text-slate-500">Calendar Days</span>
           </div>
-          <span className="text-[11px] text-emerald-600 font-medium mt-0.5 block">s 70NEB Make-up Claim</span>
+          <span className="text-[11px] text-slate-500 mt-0.5 block">Across {allBreaches.length} logged breach{allBreaches.length === 1 ? '' : 'es'}</span>
         </div>
       </div>
 
@@ -636,14 +678,20 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
           {/* Pattern 1 */}
           <button
             onClick={() => {
+              if (patternMatches.fridayChangeovers.length === 0) return;
               setActivePatternFilter(activePatternFilter === 'friday-changeovers' ? null : 'friday-changeovers');
-              setCurrentYear(2024);
-              setCurrentMonth(3); // Jump to April 2024
-              setSelectedDay('2024-04-12');
+              const target = patternMatches.fridayChangeovers[patternMatches.fridayChangeovers.length - 1];
+              const [ty, tm] = target.date.split('-').map(Number);
+              setCurrentYear(ty);
+              setCurrentMonth(tm - 1);
+              setSelectedDay(target.date);
             }}
+            disabled={patternMatches.fridayChangeovers.length === 0}
             className={`p-3 text-left rounded-lg transition-all ${
               activePatternFilter === 'friday-changeovers'
                 ? 'bg-rose-50 ring-2 ring-rose-500/80 shadow-sm'
+                : patternMatches.fridayChangeovers.length === 0
+                ? 'opacity-50 cursor-not-allowed'
                 : 'hover:bg-slate-50'
             }`}
           >
@@ -653,12 +701,14 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
               </span>
               <span className="text-[11px] font-bold text-rose-700">{patternCounts.fridayChangeovers} Incidents</span>
             </div>
-            <h3 className="text-xs font-bold text-slate-900">Friday 15:30 Pre-Weekend Cut-Off</h3>
+            <h3 className="text-xs font-bold text-slate-900">Friday / Order 4.2 Breach Cluster</h3>
             <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
-              Mother signs children out 30-45 mins before the 15:30 school bell, taking them on unannounced trips or declaring sudden uncertified colds.
+              {patternMatches.fridayChangeovers.length > 0
+                ? `Most recent: "${patternMatches.fridayChangeovers[patternMatches.fridayChangeovers.length - 1].title}" (${patternMatches.fridayChangeovers[patternMatches.fridayChangeovers.length - 1].date}).`
+                : 'No documented breaches currently match this pattern.'}
             </p>
             <div className="mt-2 text-[10px] text-rose-700 font-semibold flex items-center gap-1">
-              <span>Isolate Friday Changeovers</span>
+              <span>{patternMatches.fridayChangeovers.length === 0 ? 'No matching breaches' : 'Isolate Friday / Order 4.2 Changeovers'}</span>
               <ArrowRight className="w-3 h-3" />
             </div>
           </button>
@@ -666,14 +716,20 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
           {/* Pattern 2 */}
           <button
             onClick={() => {
+              if (patternMatches.communicationBlackouts.length === 0) return;
               setActivePatternFilter(activePatternFilter === 'communication-blackouts' ? null : 'communication-blackouts');
-              setCurrentYear(2024);
-              setCurrentMonth(4); // Jump to May 2024
-              setSelectedDay('2024-05-07');
+              const target = patternMatches.communicationBlackouts[patternMatches.communicationBlackouts.length - 1];
+              const [ty, tm] = target.date.split('-').map(Number);
+              setCurrentYear(ty);
+              setCurrentMonth(tm - 1);
+              setSelectedDay(target.date);
             }}
+            disabled={patternMatches.communicationBlackouts.length === 0}
             className={`p-3 text-left rounded-lg transition-all ${
               activePatternFilter === 'communication-blackouts'
                 ? 'bg-amber-50 ring-2 ring-amber-500/80 shadow-sm'
+                : patternMatches.communicationBlackouts.length === 0
+                ? 'opacity-50 cursor-not-allowed'
                 : 'hover:bg-slate-50'
             }`}
           >
@@ -683,12 +739,14 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
               </span>
               <span className="text-[11px] font-bold text-amber-700">{patternCounts.communicationBlackouts} Incidents</span>
             </div>
-            <h3 className="text-xs font-bold text-slate-900">Strategic 42h Comm Blackouts</h3>
+            <h3 className="text-xs font-bold text-slate-900">Order 9.1 Communication Breach Cluster</h3>
             <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
-              Communication delays (68h to 126h) cluster specifically when financial sharing (dental quote, levies) or holiday schedule agreements are requested.
+              {patternMatches.communicationBlackouts.length > 0
+                ? `Most recent: "${patternMatches.communicationBlackouts[patternMatches.communicationBlackouts.length - 1].title}" (${patternMatches.communicationBlackouts[patternMatches.communicationBlackouts.length - 1].date}).`
+                : 'No documented breaches currently match this pattern.'}
             </p>
             <div className="mt-2 text-[10px] text-amber-700 font-semibold flex items-center gap-1">
-              <span>Isolate Email Blackouts</span>
+              <span>{patternMatches.communicationBlackouts.length === 0 ? 'No matching breaches' : 'Isolate Order 9.1 Breaches'}</span>
               <ArrowRight className="w-3 h-3" />
             </div>
           </button>
@@ -696,14 +754,20 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
           {/* Pattern 3 */}
           <button
             onClick={() => {
+              if (patternMatches.publicDenigration.length === 0) return;
               setActivePatternFilter(activePatternFilter === 'public-denigration' ? null : 'public-denigration');
-              setCurrentYear(2024);
-              setCurrentMonth(4); // Jump to May 2024
-              setSelectedDay('2024-05-19');
+              const target = patternMatches.publicDenigration[patternMatches.publicDenigration.length - 1];
+              const [ty, tm] = target.date.split('-').map(Number);
+              setCurrentYear(ty);
+              setCurrentMonth(tm - 1);
+              setSelectedDay(target.date);
             }}
+            disabled={patternMatches.publicDenigration.length === 0}
             className={`p-3 text-left rounded-lg transition-all ${
               activePatternFilter === 'public-denigration'
                 ? 'bg-indigo-50 ring-2 ring-indigo-500/80 shadow-sm'
+                : patternMatches.publicDenigration.length === 0
+                ? 'opacity-50 cursor-not-allowed'
                 : 'hover:bg-slate-50'
             }`}
           >
@@ -713,12 +777,14 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
               </span>
               <span className="text-[11px] font-bold text-indigo-700">{patternCounts.publicDenigration} Incidents</span>
             </div>
-            <h3 className="text-xs font-bold text-slate-900">Extracurricular Public Denigration</h3>
+            <h3 className="text-xs font-bold text-slate-900">Order 11.2 Breach Cluster</h3>
             <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
-              Verbal abuse and social media disparagement documented at school gate handovers and in front of Mason and Isabella.
+              {patternMatches.publicDenigration.length > 0
+                ? `Most recent: "${patternMatches.publicDenigration[patternMatches.publicDenigration.length - 1].title}" (${patternMatches.publicDenigration[patternMatches.publicDenigration.length - 1].date}).`
+                : 'No documented breaches currently match this pattern.'}
             </p>
             <div className="mt-2 text-[10px] text-indigo-700 font-semibold flex items-center gap-1">
-              <span>Isolate Denigration Events</span>
+              <span>{patternMatches.publicDenigration.length === 0 ? 'No matching breaches' : 'Isolate Order 11.2 Breaches'}</span>
               <ArrowRight className="w-3 h-3" />
             </div>
           </button>
@@ -726,14 +792,20 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
           {/* Pattern 4 */}
           <button
             onClick={() => {
+              if (patternMatches.medicalTravelEvasion.length === 0) return;
               setActivePatternFilter(activePatternFilter === 'medical-travel-evasion' ? null : 'medical-travel-evasion');
-              setCurrentYear(2024);
-              setCurrentMonth(6); // Jump to July 2024
-              setSelectedDay('2024-07-04');
+              const target = patternMatches.medicalTravelEvasion[patternMatches.medicalTravelEvasion.length - 1];
+              const [ty, tm] = target.date.split('-').map(Number);
+              setCurrentYear(ty);
+              setCurrentMonth(tm - 1);
+              setSelectedDay(target.date);
             }}
+            disabled={patternMatches.medicalTravelEvasion.length === 0}
             className={`p-3 text-left rounded-lg transition-all ${
               activePatternFilter === 'medical-travel-evasion'
                 ? 'bg-purple-50 ring-2 ring-purple-500/80 shadow-sm'
+                : patternMatches.medicalTravelEvasion.length === 0
+                ? 'opacity-50 cursor-not-allowed'
                 : 'hover:bg-slate-50'
             }`}
           >
@@ -743,12 +815,14 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
               </span>
               <span className="text-[11px] font-bold text-purple-700">{patternCounts.medicalTravelEvasion} Incidents</span>
             </div>
-            <h3 className="text-xs font-bold text-slate-900">Medical & Regional Travel Evasion</h3>
+            <h3 className="text-xs font-bold text-slate-900">Order 5.1 & 13.1 Breach Cluster</h3>
             <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
-              Concealing hospital emergency admissions and booking regional trips without mandatory 28-day notice.
+              {patternMatches.medicalTravelEvasion.length > 0
+                ? `Most recent: "${patternMatches.medicalTravelEvasion[patternMatches.medicalTravelEvasion.length - 1].title}" (${patternMatches.medicalTravelEvasion[patternMatches.medicalTravelEvasion.length - 1].date}).`
+                : 'No documented breaches currently match this pattern.'}
             </p>
             <div className="mt-2 text-[10px] text-purple-700 font-semibold flex items-center gap-1">
-              <span>Isolate Medical/Travel</span>
+              <span>{patternMatches.medicalTravelEvasion.length === 0 ? 'No matching breaches' : 'Isolate Order 5.1 & 13.1 Breaches'}</span>
               <ArrowRight className="w-3 h-3" />
             </div>
           </button>
