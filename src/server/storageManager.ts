@@ -249,7 +249,34 @@ export async function getStorageState(): Promise<{
 }> {
   initStorageDirs();
 
-  // Try PostgreSQL first if configured
+  // Read the disk store first -- it is the source of truth whenever
+  // PostgreSQL has fallen behind (e.g. a poisoned document silently
+  // broke a prior Postgres write while the file write kept succeeding).
+  let fileResult: {
+    exists: boolean;
+    data: any;
+    lastUpdated: string | null;
+    filePath: string;
+    storageEngine: 'filesystem';
+  } = { exists: false, data: null, lastUpdated: null, filePath: DB_FILE, storageEngine: 'filesystem' };
+
+  if (fs.existsSync(DB_FILE)) {
+    try {
+      const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      fileResult = {
+        exists: true,
+        data: parsed.data || parsed,
+        lastUpdated: parsed.lastUpdated || null,
+        filePath: DB_FILE,
+        storageEngine: 'filesystem',
+      };
+    } catch (err) {
+      console.error('Failed to read self-hosted case store:', err);
+    }
+  }
+
+  // Check PostgreSQL and use it only if it is at least as fresh as disk.
   const pool = getPgPool();
   if (pool) {
     try {
@@ -260,13 +287,24 @@ export async function getStorageState(): Promise<{
           ['FCWA 4344/2023']
         );
         if (res.rows.length > 0) {
-          return {
-            exists: true,
-            data: res.rows[0].data,
-            lastUpdated: res.rows[0].last_updated ? new Date(res.rows[0].last_updated).toISOString() : null,
-            filePath: 'postgresql://fcwa_case_db/case_records',
-            storageEngine: 'postgresql',
-          };
+          const pgLastUpdated = res.rows[0].last_updated ? new Date(res.rows[0].last_updated).toISOString() : null;
+          const pgIsFresher =
+            !fileResult.exists ||
+            !fileResult.lastUpdated ||
+            (pgLastUpdated !== null && pgLastUpdated >= fileResult.lastUpdated);
+
+          if (pgIsFresher) {
+            return {
+              exists: true,
+              data: res.rows[0].data,
+              lastUpdated: pgLastUpdated,
+              filePath: 'postgresql://fcwa_case_db/case_records',
+              storageEngine: 'postgresql',
+            };
+          }
+          console.warn(
+            `[StorageManager] Postgres snapshot (${pgLastUpdated}) is older than the disk store (${fileResult.lastUpdated}) -- serving the disk store instead.`
+          );
         }
       }
     } catch (pgErr: any) {
@@ -274,43 +312,31 @@ export async function getStorageState(): Promise<{
     }
   }
 
-  // Fallback to local file store
-  if (!fs.existsSync(DB_FILE)) {
-    return {
-      exists: false,
-      data: null,
-      lastUpdated: null,
-      filePath: DB_FILE,
-      storageEngine: 'filesystem',
-    };
-  }
-
-  try {
-    const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    const parsed = JSON.parse(raw);
-    return {
-      exists: true,
-      data: parsed.data || parsed,
-      lastUpdated: parsed.lastUpdated || null,
-      filePath: DB_FILE,
-      storageEngine: 'filesystem',
-    };
-  } catch (err) {
-    console.error('Failed to read self-hosted case store:', err);
-    return {
-      exists: false,
-      data: null,
-      lastUpdated: null,
-      filePath: DB_FILE,
-      storageEngine: 'filesystem',
-    };
-  }
+  return fileResult;
 }
-
 // Serializes saveStorageState calls so concurrent saves apply in the
 // order they were invoked, not the order their I/O happens to finish in.
 // Without this, a slow retry of an OLDER payload could complete after a
 // newer save and silently overwrite it with stale (fewer-documents) data.
+function sanitizeForPostgres<T>(value: T): T {
+  if (typeof value === 'string') {
+    return value
+      .replace(/\u0000/g, '')
+      .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '') as unknown as T;
+  }
+  if (Array.isArray(value)) {
+    return (value as unknown[]).map(sanitizeForPostgres) as unknown as T;
+  }
+  if (value && typeof value === 'object') {
+    const out: any = {};
+    for (const key of Object.keys(value as any)) {
+      out[key] = sanitizeForPostgres((value as any)[key]);
+    }
+    return out;
+  }
+  return value;
+}
+
 let saveQueue: Promise<unknown> = Promise.resolve();
 
 export function saveStorageState(
@@ -333,6 +359,7 @@ async function saveStorageStateInternal(
   initStorageDirs();
   const timestamp = new Date().toISOString();
   const caseId = payload.caseId || 'FCWA 4344/2023';
+  const sanitizedData = sanitizeForPostgres(payload.data || {});
 
   // Always mirror to disk for instant disaster recovery and fast export
   const fullDocument: CaseStorePayload = {
@@ -340,7 +367,7 @@ async function saveStorageStateInternal(
     caseId,
     lastUpdated: timestamp,
     storageType: 'postgresql-hybrid',
-    data: payload.data || {},
+    data: sanitizedData,
   };
 
   const serialized = JSON.stringify(fullDocument, null, 2);
@@ -362,7 +389,7 @@ async function saveStorageStateInternal(
            VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (id) DO UPDATE 
            SET last_updated = EXCLUDED.last_updated, data = EXCLUDED.data`,
-          [caseId, caseId, '2.0.0', 'postgresql', timestamp, JSON.stringify(payload.data || {})]
+          [caseId, caseId, '2.0.0', 'postgresql', timestamp, JSON.stringify(sanitizedData)]
         );
 
         activeEngine = 'postgresql';
@@ -372,12 +399,12 @@ async function saveStorageStateInternal(
           await pool.query(
             `INSERT INTO database_snapshots (file_name, label, size_bytes, store_json)
              VALUES ($1, $2, $3, $4)`,
-            [snapshotName, 'manual', Buffer.byteLength(serialized, 'utf-8'), JSON.stringify(payload.data || {})]
+            [snapshotName, 'manual', Buffer.byteLength(serialized, 'utf-8'), JSON.stringify(sanitizedData)]
           );
         }
 
         // Synchronize normalized tables asynchronously
-        syncNormalizedTables(pool, caseId, payload.data || {}).catch((err) => {
+        syncNormalizedTables(pool, caseId, sanitizedData).catch((err) => {
           console.warn('[StorageManager] Normalized table sync notice:', err.message);
         });
       }
@@ -524,9 +551,9 @@ async function syncNormalizedTables(pool: Pool, caseId: string, data: any): Prom
           disc.claimText || '',
           'Contradiction',
           disc.severity || 'Medium',
-          disc.evidenceDocId || null,
+          disc.evidenceDocId ? String(disc.evidenceDocId).slice(0, 100) : null,
           disc.claimText || null,
-          disc.conflictingFact || null,
+          disc.conflictingFact ? String(disc.conflictingFact).slice(0, 100) : null,
           disc.legalImpact || null,
         ]
       ).catch((err) => {
