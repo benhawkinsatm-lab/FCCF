@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { upsertProfiles } from '../utils/reconcile';
 import { 
   User, 
   Users, 
@@ -94,6 +93,7 @@ interface PartyProfilesProps {
   timeline: TimelineEvent[];
   communicationMessages: CommunicationMessage[];
   onUpdateProfiles: (updated: PartyProfile[]) => void;
+  onToggleProfileLock: (id: string) => void;
   onViewDocument: (doc: DocumentRecord) => void;
   onNavigateToAffidavit: () => void;
   onNavigateToBreaches: () => void;
@@ -105,6 +105,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
   timeline,
   communicationMessages,
   onUpdateProfiles,
+  onToggleProfileLock,
   onViewDocument,
   onNavigateToAffidavit,
   onNavigateToBreaches,
@@ -368,7 +369,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                 )}
               </button>
               <button
-                onClick={() => onUpdateProfiles(upsertProfiles(profiles, [{ ...profile, immutableLock: !profile.immutableLock }]))}
+                onClick={() => onToggleProfileLock(profile.id)}
                 className={`absolute -top-1.5 -right-1.5 p-0.5 rounded-full border transition-colors ${
                   profile.immutableLock
                     ? 'text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100'

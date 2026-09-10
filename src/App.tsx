@@ -59,7 +59,7 @@ const BulkFolderImportModal = lazy(() => import('./components/BulkFolderImportMo
 const SelfHostedStorageModal = lazy(() => import('./components/SelfHostedStorageModal').then(m => ({ default: m.SelfHostedStorageModal })));
 const DeleteDocumentWarningModal = lazy(() => import('./components/document-library/DeleteDocumentWarningModal').then(m => ({ default: m.DeleteDocumentWarningModal })));
 import { ensureAssessments } from './utils/communicationProductivity';
-import { upsertByKey, upsertProfiles } from './utils/reconcile';
+import { upsertProfiles, upsertTimelineEvents, upsertCommunications, timelineEventKey, isLocked } from './utils/reconcile';
 import { UndoDeletionToast } from './components/document-library/UndoDeletionToast';
 import {
   inspectDocumentDependencies,
@@ -298,12 +298,17 @@ export default function App() {
   const handleAddResponseRequirement = (newReq: ResponseRequirement) => {
     setResponseRequirements(prev => [newReq, ...prev]);
   };
+  const handleUpdateTimelineEventDirect = (updatedEvent: TimelineEvent) => {
+    setTimeline(prev => prev.map(e => (e.id === updatedEvent.id ? updatedEvent : e)));
+  };
+
   const handleAddTimelineEvent = (newEvent: TimelineEvent) => {
-    const existingEvent = timeline.find(e => e.id === newEvent.id);
-    if (existingEvent && (existingEvent.isUserVerified || existingEvent.immutableLock)) {
+    const newKey = timelineEventKey(newEvent);
+    const existingEvent = timeline.find(e => e.id === newEvent.id || timelineEventKey(e) === newKey);
+    if (existingEvent && isLocked(existingEvent)) {
       return; // locked record: an AI/ingestion refresh must never overwrite it
     }
-    setTimeline(prev => upsertByKey(prev, [newEvent], e => e.id));
+    setTimeline(prev => upsertTimelineEvents(prev, [newEvent]));
     if (!existingEvent && newEvent.orderBreachFlag && newEvent.breachedOrderNumber) {
       setOrders(prevOrders => 
         prevOrders.map(o => {
@@ -522,6 +527,7 @@ export default function App() {
             timeline={timeline}
             communicationMessages={communicationMessages}
             onUpdateProfiles={(generated) => setPartyProfiles(prev => upsertProfiles(prev, generated))}
+            onToggleProfileLock={(id) => setPartyProfiles(prev => prev.map(p => (p.id === id ? { ...p, immutableLock: !p.immutableLock } : p)))}
             onViewDocument={(doc) => setSelectedDocument(doc)}
             onNavigateToAffidavit={() => setActiveTab('affidavit')}
             onNavigateToBreaches={() => setActiveTab('breaches')}
@@ -568,7 +574,7 @@ export default function App() {
             documents={documents}
             onViewDocument={(doc) => setSelectedDocument(doc)}
             onAddEvent={handleAddTimelineEvent}
-            onUpdateEvent={handleAddTimelineEvent}
+            onUpdateEvent={handleUpdateTimelineEventDirect}
           />
         )}
 
@@ -687,10 +693,10 @@ export default function App() {
             documents={documents}
             onViewDocument={(doc) => setSelectedDocument(doc)}
             onGenerateMessages={(generated) => {
-              setCommunicationMessages(prev => ensureAssessments(upsertByKey(prev, generated, m => m.id)));
+              setCommunicationMessages(prev => ensureAssessments(upsertCommunications(prev, generated)));
             }}
             onUpdateMessage={(updated) => {
-              setCommunicationMessages(prev => ensureAssessments(upsertByKey(prev, [updated], m => m.id)));
+              setCommunicationMessages(prev => ensureAssessments(prev.map(m => (m.id === updated.id ? updated : m))));
             }}
           />
         )}

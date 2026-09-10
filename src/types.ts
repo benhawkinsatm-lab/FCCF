@@ -175,6 +175,9 @@ export interface ChildImpactRecord {
   /** False when the child is inferred rather than named in the source. */
   directlyEvidenced: boolean;
   sourceExcerpt?: string;
+  /** Human verification / lock state -- see TimelineEvent for semantics. */
+  isUserVerified?: boolean;
+  immutableLock?: boolean;
 }
 
 export type ParentingOrderCategory = 
