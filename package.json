@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@kenjiuno/msgreader": "^1.28.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
@@ -26,6 +27,7 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "pg": "^8.23.0",
+    "postal-mime": "^3.0.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "tesseract.js": "^7.0.0",

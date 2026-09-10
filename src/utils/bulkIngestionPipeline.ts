@@ -14,6 +14,7 @@ import { performOcr, isImageFile, OcrResult } from '../services/ocrService';
 import { classifyProductivity, detectChildrenReferenced } from './communicationProductivity';
 import { inferChildCategory } from './childTimelineService';
 import { storeOriginalFile } from './originalFileStorage';
+import { isEmailFile, parseEmailFile } from './emailFileParser';
 
 // Infers a concrete fileType for a Direct Communication document from its
 // actual content, since the DocumentRecord fileType union has no generic
@@ -44,6 +45,11 @@ export interface IngestedFileResult {
  * as a manually uploaded one.
  */
 async function readFileForIngestion(file: File): Promise<{ base64: string; textPayload: string; ocrResult: OcrResult | null }> {
+  if (isEmailFile(file)) {
+    const parsed = await parseEmailFile(file);
+    return { base64: '', textPayload: parsed.textPayload, ocrResult: null };
+  }
+
   if (isImageFile(file)) {
     const ocrResult = await performOcr(file);
     const base64 = await fileToBase64(file);

@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import MsgReader from '@kenjiuno/msgreader';
 import {
   getStorageState,
   saveStorageState,
@@ -1713,6 +1714,60 @@ Return strict JSON matching these fields.
     } catch (err: any) {
       console.warn('Failed to delete original file:', err?.message || err);
       res.status(500).json({ deleted: false, error: 'Could not delete the original file.' });
+    }
+  });
+
+  // Parses an Outlook .msg file (legacy binary/CFBF format) into the
+  // same normalized {subject, from, date, attachmentNames, textPayload}
+  // shape src/utils/emailFileParser.ts produces client-side for .eml.
+  // This runs server-side (not in the browser bundle) because
+  // @kenjiuno/msgreader pulls in iconv-lite for legacy code-page
+  // decoding, which needs Node's Buffer.
+  app.post('/api/parse-msg', (req, res) => {
+    try {
+      const { base64Data, fileName } = req.body || {};
+      if (!base64Data) {
+        return res.status(400).json({ error: 'No file data provided.' });
+      }
+      const buffer = Buffer.from(base64Data, 'base64');
+      const reader = new MsgReader(buffer);
+      const fields = reader.getFileData();
+
+      const from = fields.senderName && fields.senderEmail
+        ? `${fields.senderName} <${fields.senderEmail}>`
+        : (fields.senderName || fields.senderEmail || '');
+
+      const recipients = fields.recipients || [];
+      const formatRecipients = (type: 'to' | 'cc' | 'bcc') =>
+        recipients
+          .filter((r: any) => r.recipType === type)
+          .map((r: any) => (r.name && r.email ? `${r.name} <${r.email}>` : (r.name || r.email || '')))
+          .filter(Boolean)
+          .join(', ');
+
+      const date = fields.messageDeliveryTime || fields.clientSubmitTime || '';
+      const subject = fields.subject || (fileName || 'Ingested Email').replace(/\.msg$/i, '');
+      const attachmentNames: string[] = (fields.attachments || [])
+        .map((a: any) => a.fileName)
+        .filter((n: any): n is string => Boolean(n));
+      const bodyHtml = typeof fields.bodyHtml === 'string' ? fields.bodyHtml : '';
+      const body = fields.body || (bodyHtml ? bodyHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '');
+
+      const headerLines: Array<[string, string]> = [
+        ['From', from],
+        ['To', formatRecipients('to')],
+        ['Cc', formatRecipients('cc')],
+        ['Date', date],
+        ['Subject', subject],
+      ];
+      const header = headerLines.filter(([, v]) => v && v.trim().length > 0).map(([k, v]) => `${k}: ${v}`).join('\n');
+      const attachmentsLine = attachmentNames.length > 0 ? `Attachments: ${attachmentNames.join(', ')}\n` : '';
+      const textPayload = `${header}\n${attachmentsLine}\n${body || '(No message body content.)'}`.trim();
+
+      res.json({ subject, from, date, attachmentNames, textPayload });
+    } catch (err: any) {
+      console.warn('Failed to parse .msg file:', err?.message || err);
+      res.status(500).json({ error: 'Could not parse the .msg file.' });
     }
   });
 

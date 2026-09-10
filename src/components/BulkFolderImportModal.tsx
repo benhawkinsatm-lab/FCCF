@@ -348,6 +348,7 @@ function guessMimeFromName(name: string): string {
     csv: 'text/csv',
     json: 'application/json',
     eml: 'message/rfc822',
+    msg: 'application/vnd.ms-outlook',
   };
   return map[ext] || 'application/octet-stream';
 }

@@ -47,6 +47,7 @@ import { performOcr, isImageFile, generateSampleCourtDocumentFile, OcrResult, Oc
 import { classifyProductivity, detectChildrenReferenced } from '../utils/communicationProductivity';
 import { inferChildCategory } from '../utils/childTimelineService';
 import { storeOriginalFile } from '../utils/originalFileStorage';
+import { isEmailFile, parseEmailFile } from '../utils/emailFileParser';
 
 // Infers a concrete fileType for a Direct Communication document from its
 // actual content, since the DocumentRecord fileType union has no generic
@@ -259,7 +260,14 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
     setFileName(file.name);
     setOcrError(null);
 
-    if (isImageFile(file)) {
+    if (isEmailFile(file)) {
+      setImagePreviewUrl(null);
+      setOcrResult(null);
+      parseEmailFile(file).then(parsed => {
+        setRawText(parsed.textPayload);
+        autoParseFile(file.name, file.type || 'message/rfc822', '', parsed.textPayload);
+      });
+    } else if (isImageFile(file)) {
       processImageOcr(file);
     } else if (file.type === 'application/pdf') {
       setImagePreviewUrl(null);
@@ -790,7 +798,7 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
                   id="document-file-input"
                   onChange={handleFileUpload}
                   className="hidden"
-                  accept=".png,.jpg,.jpeg,.webp,.bmp,.tiff,.pdf,.txt,.docx,.csv"
+                  accept=".png,.jpg,.jpeg,.webp,.bmp,.tiff,.pdf,.txt,.docx,.csv,.eml,.msg"
                 />
                 <label htmlFor="document-file-input" className="cursor-pointer block space-y-1.5">
                   <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-1">
