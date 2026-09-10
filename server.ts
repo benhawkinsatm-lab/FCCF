@@ -1599,8 +1599,9 @@ therapy, an expressed view, or a school incident. If nothing in the vault
 addresses a field, write "No evidence on file" and leave the arrays empty.
 An empty child field is a knowledge gap to be closed, not a blank to be filled.
 
-DOCUMENTS IN VAULT:
-${JSON.stringify(documents.slice(0, 12), null, 2)}
+DOCUMENTS IN VAULT (cite only IDs that actually appear below -- a citation to
+any document not listed here will not resolve to a real record for the user):
+${JSON.stringify(documents.slice(0, 60), null, 2)}
 
 COMMUNICATION RECORDS (for tone AND productivity assessment):
 ${JSON.stringify((communications || []).slice(0, 30), null, 2)}

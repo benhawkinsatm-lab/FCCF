@@ -15,7 +15,8 @@ import {
   Quote,
   Brain,
   ChevronRight,
-  Activity
+  Activity,
+  AlertCircle
 } from 'lucide-react';
 import {
   PartyProfile,
@@ -789,7 +790,9 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                   {childTimeline.length > 0 ? (
                     <div className="space-y-2">
                       {childTimeline.slice(0, 20).map(({ event, impact }, idx) => {
-                        const sourceDoc = documents.find(d => d.id === event.primaryDocId);
+                        const sourceDoc = documents.find(
+                          d => d.id.trim().toLowerCase() === (event.primaryDocId || '').trim().toLowerCase()
+                        );
                         return (
                           <div
                             key={`${event.id}-${idx}`}
@@ -816,15 +819,24 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                                   </span>
                                 )}
                               </div>
-                              {sourceDoc && (
+                              {sourceDoc ? (
                                 <button
                                   onClick={() => onViewDocument(sourceDoc)}
                                   className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
+                                  title="Open this document in the Vault viewer"
                                 >
                                   <span>{sourceDoc.annexureNumber || sourceDoc.id}</span>
                                   <ExternalLink className="w-3 h-3" />
                                 </button>
-                              )}
+                              ) : event.primaryDocId ? (
+                                <span
+                                  className="text-[11px] text-slate-400 font-medium flex items-center gap-1"
+                                  title={`Cited document ${event.primaryDocId} is not in the current vault -- it may have been removed or re-ingested under a different ID.`}
+                                >
+                                  <span>{event.primaryDocId}</span>
+                                  <AlertCircle className="w-3 h-3" />
+                                </span>
+                              ) : null}
                             </div>
                             <div className="font-semibold text-slate-900">{event.title}</div>
                             <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
@@ -967,7 +979,9 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
 
               <div className="space-y-2">
                 {(activeProfile.evidentiaryReferences || []).map((ref, idx) => {
-                  const docObj = documents.find(d => d.id === ref.docId);
+                  const docObj = documents.find(
+                    d => d.id.trim().toLowerCase() === (ref.docId || '').trim().toLowerCase()
+                  );
                   return (
                     <div 
                       key={idx}
@@ -983,7 +997,7 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                         <p className="text-[11px] text-slate-500 mt-0.5">{ref.note}</p>
                       </div>
 
-                      {docObj && (
+                      {docObj ? (
                         <button
                           onClick={() => onViewDocument(docObj)}
                           className="px-2 py-1 text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 shrink-0"
@@ -992,6 +1006,14 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                           <span>View</span>
                           <ExternalLink className="w-3 h-3" />
                         </button>
+                      ) : (
+                        <span
+                          className="px-2 py-1 text-[11px] text-slate-400 font-medium flex items-center gap-1 shrink-0"
+                          title={`Cited document ${ref.docId || 'unknown'} is not in the current vault -- it may have been removed or re-ingested under a different ID.`}
+                        >
+                          <span>Not in Vault</span>
+                          <AlertCircle className="w-3 h-3" />
+                        </span>
                       )}
                     </div>
                   );
