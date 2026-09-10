@@ -152,6 +152,14 @@ export interface TimelineEvent {
   /** Provenance: how this event came to exist (used by the coverage engine). */
   generatedBy?: 'AI Ingestion' | 'AI Review' | 'Manual Entry' | 'Drive Import';
   generationRationale?: string;
+
+  /**
+   * Human verification / lock state. A record with isUserVerified or
+   * immutableLock true is never touched by an AI refresh -- it is skipped
+   * entirely by the reconciliation merge in src/utils/reconcile.ts.
+   */
+  isUserVerified?: boolean;
+  immutableLock?: boolean;
 }
 
 /**
@@ -244,6 +252,10 @@ export interface CommunicationMessage {
 
   /** What was asked of this party, where the message is a reply. */
   requestAddressed?: string;
+
+  /** Human verification / lock state -- see TimelineEvent for semantics. */
+  isUserVerified?: boolean;
+  immutableLock?: boolean;
 }
 
 /**
@@ -440,6 +452,14 @@ export interface PartyProfile {
   };
   evidentiaryReferences: { docId: string; title: string; citation: string; note: string }[];
   lastAiReviewTimestamp?: string;
+
+  /**
+   * Human verification / lock state at the whole-profile level. A locked
+   * profile is preserved unchanged by an AI "Run AI Review" refresh; see
+   * src/utils/reconcile.ts.
+   */
+  isUserVerified?: boolean;
+  immutableLock?: boolean;
 
   /**
    * Present only on child profiles (PROF-003 Isabella, PROF-004 Mason).

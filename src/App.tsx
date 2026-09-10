@@ -59,6 +59,7 @@ const BulkFolderImportModal = lazy(() => import('./components/BulkFolderImportMo
 const SelfHostedStorageModal = lazy(() => import('./components/SelfHostedStorageModal').then(m => ({ default: m.SelfHostedStorageModal })));
 const DeleteDocumentWarningModal = lazy(() => import('./components/document-library/DeleteDocumentWarningModal').then(m => ({ default: m.DeleteDocumentWarningModal })));
 import { ensureAssessments } from './utils/communicationProductivity';
+import { upsertByKey, upsertProfiles } from './utils/reconcile';
 import { UndoDeletionToast } from './components/document-library/UndoDeletionToast';
 import {
   inspectDocumentDependencies,
@@ -298,8 +299,12 @@ export default function App() {
     setResponseRequirements(prev => [newReq, ...prev]);
   };
   const handleAddTimelineEvent = (newEvent: TimelineEvent) => {
-    setTimeline(prev => [newEvent, ...prev]);
-    if (newEvent.orderBreachFlag && newEvent.breachedOrderNumber) {
+    const existingEvent = timeline.find(e => e.id === newEvent.id);
+    if (existingEvent && (existingEvent.isUserVerified || existingEvent.immutableLock)) {
+      return; // locked record: an AI/ingestion refresh must never overwrite it
+    }
+    setTimeline(prev => upsertByKey(prev, [newEvent], e => e.id));
+    if (!existingEvent && newEvent.orderBreachFlag && newEvent.breachedOrderNumber) {
       setOrders(prevOrders => 
         prevOrders.map(o => {
           if (newEvent.breachedOrderNumber?.includes(o.orderNumber)) {
@@ -516,7 +521,7 @@ export default function App() {
             documents={documents}
             timeline={timeline}
             communicationMessages={communicationMessages}
-            onUpdateProfiles={setPartyProfiles}
+            onUpdateProfiles={(generated) => setPartyProfiles(prev => upsertProfiles(prev, generated))}
             onViewDocument={(doc) => setSelectedDocument(doc)}
             onNavigateToAffidavit={() => setActiveTab('affidavit')}
             onNavigateToBreaches={() => setActiveTab('breaches')}
@@ -681,11 +686,7 @@ export default function App() {
             documents={documents}
             onViewDocument={(doc) => setSelectedDocument(doc)}
             onGenerateMessages={(generated) => {
-              setCommunicationMessages(prev => {
-                const byId = new Map(prev.map(m => [m.id, m]));
-                generated.forEach(m => byId.set(m.id, m));
-                return ensureAssessments(Array.from(byId.values()));
-              });
+              setCommunicationMessages(prev => ensureAssessments(upsertByKey(prev, generated, m => m.id)));
             }}
           />
         )}
