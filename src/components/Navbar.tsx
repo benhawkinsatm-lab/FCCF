@@ -167,12 +167,32 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={openStorageModal}
             id="top-storage-btn"
-            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 rounded text-xs transition-colors flex items-center gap-1.5 shadow-sm"
-            title="Self-Hosted Case Database & Storage Manager"
+            className={`px-2.5 py-1 rounded text-xs transition-colors flex items-center gap-1.5 shadow-sm border ${
+              syncStatus === 'error'
+                ? 'bg-rose-950/60 hover:bg-rose-900/60 text-rose-200 border-rose-800'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 hover:border-slate-600'
+            }`}
+            title={
+              syncStatus === 'error'
+                ? 'Save failed -- retrying automatically. Do not close this tab until it shows Synced, or you may lose your latest changes.'
+                : syncStatus === 'syncing'
+                ? 'Saving changes to the self-hosted store...'
+                : 'Self-Hosted Case Database & Storage Manager'
+            }
           >
-            <Database className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Self-Hosted Store</span>
-            <span className={`w-1.5 h-1.5 rounded-full ${syncStatus === 'synced' ? 'bg-emerald-400 animate-pulse' : syncStatus === 'syncing' ? 'bg-amber-400 animate-spin' : 'bg-slate-400'}`}></span>
+            <Database className={`w-3.5 h-3.5 ${syncStatus === 'error' ? 'text-rose-400' : 'text-emerald-400'}`} />
+            <span className="hidden sm:inline">
+              {syncStatus === 'error' ? 'Save Failed -- Retrying' : 'Self-Hosted Store'}
+            </span>
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              syncStatus === 'synced'
+                ? 'bg-emerald-400 animate-pulse'
+                : syncStatus === 'syncing'
+                ? 'bg-amber-400 animate-spin'
+                : syncStatus === 'error'
+                ? 'bg-rose-500 animate-pulse'
+                : 'bg-slate-400'
+            }`}></span>
           </button>
 
           <button

@@ -307,7 +307,26 @@ export async function getStorageState(): Promise<{
   }
 }
 
-export async function saveStorageState(
+// Serializes saveStorageState calls so concurrent saves apply in the
+// order they were invoked, not the order their I/O happens to finish in.
+// Without this, a slow retry of an OLDER payload could complete after a
+// newer save and silently overwrite it with stale (fewer-documents) data.
+let saveQueue: Promise<unknown> = Promise.resolve();
+
+export function saveStorageState(
+  payload: CaseStorePayload,
+  isManualBackup = false
+): Promise<{ success: boolean; lastUpdated: string; sizeFormatted: string; storageEngine: string }> {
+  const run = () => saveStorageStateInternal(payload, isManualBackup);
+  const result = saveQueue.then(run, run);
+  // Keep the chain alive even if this save failed, but never let a
+  // rejection here become an unhandled rejection on the module-level
+  // queue variable itself.
+  saveQueue = result.catch(() => undefined);
+  return result;
+}
+
+async function saveStorageStateInternal(
   payload: CaseStorePayload,
   isManualBackup = false
 ): Promise<{ success: boolean; lastUpdated: string; sizeFormatted: string; storageEngine: string }> {

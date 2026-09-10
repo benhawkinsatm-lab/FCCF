@@ -199,37 +199,71 @@ export default function App() {
     };
   }, []);
 
-  // Debounced auto-sync to self-hosted store whenever state changes
+  // Debounced auto-sync to self-hosted store whenever state changes.
+  //
+  // A failed save here used to be silent: setSyncStatus('error') plus a
+  // console.warn, with no retry -- the next attempt only happened if some
+  // OTHER state array changed and re-triggered this effect. A transient
+  // failure (a dropped connection, a brief Postgres hiccup, an expired
+  // admin session) could therefore leave a just-added document counted in
+  // the UI (documents.length is pure client state) but never written to
+  // the server -- exactly the "count goes up, then drops back down on
+  // refresh" symptom. This now retries the SAME payload with backoff
+  // before giving up, so a transient failure self-heals without the user
+  // needing to touch anything else first.
   useEffect(() => {
     if (!isServerInitialized) return;
 
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
     setSyncStatus('syncing');
-    const timer = setTimeout(async () => {
+
+    const payload: CaseDataStore = {
+      documents,
+      timeline,
+      orders,
+      discrepancies,
+      knowledgeGaps,
+      communicationMessages,
+      responseRequirements,
+      partyProfiles,
+      issuesConcerns,
+      courtCriteria,
+      proposedOrders,
+      parentResolutions,
+    };
+
+    // Retry delays: 3s, 8s, 20s. After the third failure, give up and
+    // surface a persistent error state -- the next real edit (or the
+    // "Retry Sync" affordance in the storage modal) will try again.
+    const RETRY_DELAYS_MS = [3000, 8000, 20000];
+
+    const attemptSave = async (attempt: number) => {
       try {
-        const payload: CaseDataStore = {
-          documents,
-          timeline,
-          orders,
-          discrepancies,
-          knowledgeGaps,
-          communicationMessages,
-          responseRequirements,
-          partyProfiles,
-          issuesConcerns,
-          courtCriteria,
-          proposedOrders,
-          parentResolutions,
-        };
         const res = await saveSelfHostedState(payload, false);
+        if (cancelled) return;
         setLastSyncTime(res.lastUpdated);
         setSyncStatus('synced');
       } catch (err) {
-        console.warn('Auto-sync to self-hosted store failed:', err);
+        if (cancelled) return;
+        console.warn(`Auto-sync to self-hosted store failed (attempt ${attempt + 1}):`, err);
         setSyncStatus('error');
+        if (attempt < RETRY_DELAYS_MS.length) {
+          retryTimer = setTimeout(() => attemptSave(attempt + 1), RETRY_DELAYS_MS[attempt]);
+        } else {
+          console.error('Auto-sync to self-hosted store gave up after repeated failures. Unsaved changes may exist -- check the Self-Hosted Store panel.');
+        }
       }
-    }, 1200);
+    };
 
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => attemptSave(0), 1200);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [
     isServerInitialized,
     documents,
@@ -245,6 +279,20 @@ export default function App() {
     proposedOrders,
     parentResolutions,
   ]);
+
+  // Warn before an accidental refresh/close while a save is in flight or
+  // has failed -- the scenario that produces the "count goes up, then
+  // drops back down" symptom is exactly a refresh that beats the pending
+  // save (or its retries) to the server.
+  useEffect(() => {
+    if (syncStatus !== 'syncing' && syncStatus !== 'error') return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [syncStatus]);
 
   const currentStoreData = useMemo<CaseDataStore>(() => ({
     documents,
