@@ -1808,6 +1808,27 @@ There are FOUR profiles and all four must be returned:
 - PROF-003 Isabella Hawkins (Child)                — CHILD profile
 - PROF-004 Mason Hawkins (Child)                   — CHILD profile
 
+==================== STATE RECONCILIATION & PRESERVATION MANDATE ====================
+You are performing a CUMULATIVE update to case state, not writing a fresh
+record from scratch.
+1. PRESERVATION FIRST: every existing profile field, trait, and evidentiary
+   reference already on file is cumulative. Do not drop, reset, or omit an
+   existing finding just because this pass's document set does not happen
+   to mention it again -- the server merges your output onto the existing
+   profile field-by-field, so simply re-state what still holds if you have
+   nothing new to add for a field, rather than leaving it blank.
+2. MONOTONIC EXPANSION: you may ADD new traits, link previously unlinked
+   s 60CC criteria, or deepen a child's profile categories. Never return an
+   empty array or an empty string for a field the vault has already
+   evidenced -- the server keeps the existing populated value over an
+   empty one regardless, so an empty return there is simply wasted effort.
+3. IMMUTABILITY RESPECT: this request lists which profile ids are currently
+   LOCKED below. A locked profile's server-side record will not be touched
+   by your output at all -- you may still return it if useful for your own
+   context, but there is no need to spend effort revising it.
+LOCKED PROFILE IDS (server will ignore any changes to these): ${(currentProfiles || []).filter((p: any) => p?.isUserVerified || p?.immutableLock).map((p: any) => p.id).join(', ') || 'none'}
+=======================================================================================
+
 ═════════ PART A — PARENT PROFILES (PROF-001, PROF-002) ═════════
 1. behaviour: summary, conduct traits, orderComplianceRating, observedIncidentsCount, riskFactors.
 2. concerns: raisedByParty, substantiatedConcernsAgainstParty, safetyAndWellbeingNotes.
@@ -1898,17 +1919,37 @@ Return a strict JSON object with:
             .map((p: any) => [p.id, p])
         );
 
+        // Field-preserving merge: an incoming null/undefined/empty-array
+        // value never overwrites an existing populated one -- a re-run that
+        // fails to re-derive a field must not blank it out.
+        const isEmptyProfileValue = (v: any) =>
+          v === null || v === undefined ||
+          (Array.isArray(v) && v.length === 0) ||
+          (typeof v === 'string' && v.trim() === '');
+        const mergePreservingPopulated = (base: any, incoming: any) => {
+          const out: any = { ...base };
+          for (const key of Object.keys(incoming || {})) {
+            if (isEmptyProfileValue(incoming[key]) && !isEmptyProfileValue(base[key])) continue;
+            out[key] = incoming[key];
+          }
+          return out;
+        };
+
         const merged = (currentProfiles || []).map((existing: any) => {
+          if (existing?.isUserVerified || existing?.immutableLock) {
+            returnedById.delete(existing.id); // don't also re-push it as "new" below
+            return existing; // locked: an AI refresh must never overwrite it
+          }
           const incoming = returnedById.get(existing.id);
           if (!incoming) return { ...existing, lastAiReviewTimestamp: existing.lastAiReviewTimestamp };
           returnedById.delete(existing.id);
+          const fieldMerged = mergePreservingPopulated(existing, incoming);
           return {
-            ...existing,
-            ...incoming,
+            ...fieldMerged,
             id: existing.id,
             role: existing.role,
             childDetail: incoming.childDetail
-              ? { ...(existing.childDetail || {}), ...incoming.childDetail }
+              ? mergePreservingPopulated(existing.childDetail || {}, incoming.childDetail)
               : existing.childDetail,
             lastAiReviewTimestamp: timestamp,
           };
