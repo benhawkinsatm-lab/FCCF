@@ -117,6 +117,21 @@ export interface DocumentRecord {
   fileSize?: string;
   tags?: string[];
   metadata?: Record<string, any>;
+
+  /**
+   * Reference to a server-stored copy of the original file this record
+   * was ingested from (PDF, image, export, etc.), kept separate from the
+   * extracted fullText/excerpt so the original can still be opened later.
+   * Absent for documents ingested before this field existed, or when the
+   * original-file copy could not be stored.
+   */
+  originalFileRef?: {
+    storedFileName: string;
+    mimeType: string;
+    originalFileName?: string;
+    sizeBytes?: number;
+    storedAt: string;
+  };
 }
 
 export interface TimelineEvent {

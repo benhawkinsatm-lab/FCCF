@@ -46,6 +46,7 @@ import {
 import { performOcr, isImageFile, generateSampleCourtDocumentFile, OcrResult, OcrProgress } from '../services/ocrService';
 import { classifyProductivity, detectChildrenReferenced } from '../utils/communicationProductivity';
 import { inferChildCategory } from '../utils/childTimelineService';
+import { storeOriginalFile } from '../utils/originalFileStorage';
 
 // Infers a concrete fileType for a Direct Communication document from its
 // actual content, since the DocumentRecord fileType union has no generic
@@ -535,7 +536,7 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
     });
   };
 
-  const handleManualIngestSubmit = (e: React.FormEvent) => {
+  const handleManualIngestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!parsedMetadata) return;
 
@@ -576,6 +577,14 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
         isOcrProcessed: Boolean(ocrResult),
       },
     };
+
+    // Persist a retrievable copy of the source file itself (not just the
+    // extracted text/metadata above) so "Open Original File" works later.
+    // Non-fatal: ingestion proceeds even if this fails or there is no
+    // underlying File (e.g. a Drive- or FCWA-sourced record).
+    if (currentFile) {
+      newDoc.originalFileRef = await storeOriginalFile(docId, currentFile);
+    }
 
     onDocumentAdded(newDoc);
 

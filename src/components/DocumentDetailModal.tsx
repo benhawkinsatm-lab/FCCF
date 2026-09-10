@@ -1,6 +1,7 @@
 import React from 'react';
-import { X, ShieldCheck, Scale, Copy, Check, Tag, Trash2 } from 'lucide-react';
+import { X, ShieldCheck, Scale, Copy, Check, Tag, Trash2, FileSearch } from 'lucide-react';
 import { DocumentRecord } from '../types';
+import { openOriginalFile } from '../utils/originalFileStorage';
 
 interface DocumentDetailModalProps {
   document: DocumentRecord | null;
@@ -138,6 +139,18 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({ docume
             <span>Case 4344/2023 • Family Court of WA • Verified Primary Record</span>
           </div>
           <div className="flex items-center gap-2">
+            {document.originalFileRef && (
+              <button
+                type="button"
+                onClick={() => openOriginalFile(document.id)}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+                id="modal-open-original-btn"
+                title={document.originalFileRef.originalFileName || 'Open the original file this record was ingested from'}
+              >
+                <FileSearch className="w-3.5 h-3.5 text-slate-600" />
+                <span>Open Original File</span>
+              </button>
+            )}
             {onDelete && (
               <button
                 type="button"

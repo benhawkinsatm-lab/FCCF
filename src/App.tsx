@@ -60,6 +60,7 @@ const SelfHostedStorageModal = lazy(() => import('./components/SelfHostedStorage
 const DeleteDocumentWarningModal = lazy(() => import('./components/document-library/DeleteDocumentWarningModal').then(m => ({ default: m.DeleteDocumentWarningModal })));
 import { ensureAssessments } from './utils/communicationProductivity';
 import { upsertProfiles, upsertTimelineEvents, upsertCommunications, timelineEventKey, isLocked } from './utils/reconcile';
+import { deleteOriginalFile } from './utils/originalFileStorage';
 import { UndoDeletionToast } from './components/document-library/UndoDeletionToast';
 import {
   inspectDocumentDependencies,
@@ -370,6 +371,9 @@ export default function App() {
     setIsDeletingRecords(true);
 
     const docIds = docsPendingDeletion.map(d => d.id);
+    // Best-effort cleanup of any stored original-file copy so deleting a
+    // document record does not leave an orphaned file behind on the server.
+    docIds.forEach(id => deleteOriginalFile(id));
     const result = executeCascadingDocumentDeletion(docIds, {
       documents,
       timeline,

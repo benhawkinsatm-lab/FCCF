@@ -13,6 +13,7 @@ import {
 import { performOcr, isImageFile, OcrResult } from '../services/ocrService';
 import { classifyProductivity, detectChildrenReferenced } from './communicationProductivity';
 import { inferChildCategory } from './childTimelineService';
+import { storeOriginalFile } from './originalFileStorage';
 
 // Infers a concrete fileType for a Direct Communication document from its
 // actual content, since the DocumentRecord fileType union has no generic
@@ -213,6 +214,14 @@ export async function ingestFileEndToEnd(file: File, docSequenceNumber: number):
       isOcrProcessed: Boolean(ocrResult),
     },
   };
+
+  // Persist a retrievable copy of the source file itself (not just the
+  // extracted text/metadata above), the same as the manual single-document
+  // ingestion flow does -- so a document imported via the bulk folder
+  // pipeline still has a working "Open Original File" action, even though
+  // the bulk pipeline deletes its ephemeral copy in public/upload once
+  // ingestion of this file completes. Non-fatal on failure.
+  document.originalFileRef = await storeOriginalFile(docId, file);
 
   let responseRequirement: ResponseRequirement | null = null;
   if (parsedMetadata.requiresResponse) {

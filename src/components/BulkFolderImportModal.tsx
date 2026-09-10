@@ -91,11 +91,12 @@ export const BulkFolderImportModal: React.FC<BulkFolderImportModalProps> = ({
       const f = files[i];
       setProgress(prev => prev.map((p, idx) => idx === i ? { ...p, status: 'processing' } : p));
       try {
-        const fileRes = await fetch(`/upload/${encodeURIComponent(f.name)}`);
+        const fileRes = await fetch(`/upload/${encodeUploadPath(f.name)}`);
         if (!fileRes.ok) throw new Error(`Could not fetch ${f.name} (${fileRes.status})`);
         const blob = await fileRes.blob();
         const mimeType = blob.type || guessMimeFromName(f.name);
-        const file = new File([blob], f.name, { type: mimeType });
+        const baseName = f.name.split('/').pop() || f.name;
+        const file = new File([blob], baseName, { type: mimeType });
 
         const { document, responseRequirement, timelineEvent } = await ingestFileEndToEnd(file, seq);
         seq += 1;
@@ -264,6 +265,15 @@ export const BulkFolderImportModal: React.FC<BulkFolderImportModalProps> = ({
     </div>
   );
 };
+
+// UPLOAD_FOLDER listing entries may now be relative paths into subfolders
+// (e.g. "2024/receipts/invoice.pdf") so that a bulk import can walk a
+// nested folder tree, not just its top level. encodeURIComponent alone
+// would also escape the "/" separators, breaking the static file route --
+// this encodes each path segment individually and rejoins with "/".
+function encodeUploadPath(relPath: string): string {
+  return relPath.split('/').map(encodeURIComponent).join('/');
+}
 
 function guessMimeFromName(name: string): string {
   const ext = (name.split('.').pop() || '').toLowerCase();

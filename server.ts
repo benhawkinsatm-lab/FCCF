@@ -1524,18 +1524,39 @@ Return strict JSON matching these fields.
   const SKIP_UPLOAD_FILES = new Set(['.gitkeep', '.DS_Store', 'Thumbs.db']);
   app.use('/upload', express.static(UPLOAD_FOLDER));
 
+  // Recursively walks UPLOAD_FOLDER (and any subfolders inside it) so a
+  // bulk import can be run against a whole nested folder tree, not just its
+  // top level -- every returned name is a path relative to UPLOAD_FOLDER,
+  // using forward slashes regardless of host OS, so it round-trips cleanly
+  // through a URL.
+  function walkUploadFolderRecursive(dir: string, baseDir: string): { name: string; size: number; modifiedAt: string }[] {
+    const out: { name: string; size: number; modifiedAt: string }[] = [];
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return out;
+    }
+    for (const e of entries) {
+      if (SKIP_UPLOAD_FILES.has(e.name) || e.name.startsWith('.')) continue;
+      const fullPath = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        out.push(...walkUploadFolderRecursive(fullPath, baseDir));
+      } else if (e.isFile()) {
+        const stat = fs.statSync(fullPath);
+        const relPath = path.relative(baseDir, fullPath).split(path.sep).join('/');
+        out.push({ name: relPath, size: stat.size, modifiedAt: stat.mtime.toISOString() });
+      }
+    }
+    return out;
+  }
+
   app.get('/api/local-upload/list', (req, res) => {
     try {
       if (!fs.existsSync(UPLOAD_FOLDER)) {
         return res.json({ files: [] });
       }
-      const entries = fs.readdirSync(UPLOAD_FOLDER, { withFileTypes: true });
-      const files = entries
-        .filter(e => e.isFile() && !SKIP_UPLOAD_FILES.has(e.name) && !e.name.startsWith('.'))
-        .map(e => {
-          const stat = fs.statSync(path.join(UPLOAD_FOLDER, e.name));
-          return { name: e.name, size: stat.size, modifiedAt: stat.mtime.toISOString() };
-        });
+      const files = walkUploadFolderRecursive(UPLOAD_FOLDER, UPLOAD_FOLDER);
       res.json({ files });
     } catch (err: any) {
       console.warn('Failed to list local upload folder:', err?.message || err);
@@ -1568,6 +1589,119 @@ Return strict JSON matching these fields.
     } catch (err: any) {
       console.warn('Failed to delete local upload file:', err?.message || err);
       res.status(500).json({ deleted: false, error: 'Could not delete the file.' });
+    }
+  });
+
+  // Persists a copy of the raw file a DocumentRecord was ingested from,
+  // keyed by that document's id, so it stays retrievable later via the
+  // "Open Original File" action -- ingestion previously kept only the
+  // extracted text/JSON metadata and discarded (or, on the bulk-import
+  // path, actively deleted) the source file itself. Path-traversal safe:
+  // the id is sanitized to a safe filename component before being used to
+  // build any filesystem path, and every resolved path is re-checked
+  // against ORIGINALS_DIR before use.
+  const ORIGINALS_DIR = path.join(process.cwd(), 'data', 'originals');
+  function ensureOriginalsDir(): void {
+    if (!fs.existsSync(ORIGINALS_DIR)) {
+      fs.mkdirSync(ORIGINALS_DIR, { recursive: true });
+    }
+  }
+  function safeOriginalDocId(rawDocId: string): string {
+    return String(rawDocId || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  }
+  function extensionForOriginal(fileName: string | undefined, mimeType: string | undefined): string {
+    if (fileName) {
+      const ext = path.extname(fileName);
+      if (ext) return ext;
+    }
+    if (mimeType === 'application/pdf') return '.pdf';
+    if (mimeType && mimeType.startsWith('image/')) return `.${mimeType.split('/')[1]}`;
+    if (mimeType === 'text/plain') return '.txt';
+    return '.bin';
+  }
+
+  app.post('/api/files/:docId', (req, res) => {
+    try {
+      ensureOriginalsDir();
+      const docId = safeOriginalDocId(req.params.docId);
+      if (!docId) {
+        return res.status(400).json({ stored: false, error: 'Invalid document id.' });
+      }
+      const { base64Data, mimeType, fileName } = req.body || {};
+      if (!base64Data) {
+        return res.status(400).json({ stored: false, error: 'No file data provided.' });
+      }
+      const storedFileName = `${docId}${extensionForOriginal(fileName, mimeType)}`;
+      const resolvedTarget = path.resolve(path.join(ORIGINALS_DIR, storedFileName));
+      const resolvedDir = path.resolve(ORIGINALS_DIR);
+      if (!resolvedTarget.startsWith(resolvedDir + path.sep)) {
+        return res.status(400).json({ stored: false, error: 'Invalid file path.' });
+      }
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(resolvedTarget, buffer);
+      res.json({
+        stored: true,
+        originalFileRef: {
+          storedFileName,
+          mimeType: mimeType || 'application/octet-stream',
+          originalFileName: fileName || storedFileName,
+          sizeBytes: buffer.length,
+          storedAt: new Date().toISOString(),
+        },
+      });
+    } catch (err: any) {
+      console.warn('Failed to store original file:', err?.message || err);
+      res.status(500).json({ stored: false, error: 'Could not store the original file.' });
+    }
+  });
+
+  app.get('/api/files/:docId', (req, res) => {
+    try {
+      const docId = safeOriginalDocId(req.params.docId);
+      if (!docId || !fs.existsSync(ORIGINALS_DIR)) {
+        return res.status(404).send('Original file not found.');
+      }
+      const entries = fs.readdirSync(ORIGINALS_DIR);
+      const match = entries.find(name => name === docId || name.startsWith(`${docId}.`));
+      if (!match) {
+        return res.status(404).send('Original file not found.');
+      }
+      const resolvedTarget = path.resolve(path.join(ORIGINALS_DIR, match));
+      const resolvedDir = path.resolve(ORIGINALS_DIR);
+      if (!resolvedTarget.startsWith(resolvedDir + path.sep)) {
+        return res.status(400).send('Invalid file path.');
+      }
+      res.setHeader('Content-Disposition', `inline; filename="${match}"`);
+      res.sendFile(resolvedTarget);
+    } catch (err: any) {
+      console.warn('Failed to retrieve original file:', err?.message || err);
+      res.status(500).send('Could not retrieve the original file.');
+    }
+  });
+
+  // Best-effort cleanup, called when a DocumentRecord itself is deleted so
+  // an orphaned original-file copy does not sit around on disk forever.
+  app.delete('/api/files/:docId', (req, res) => {
+    try {
+      const docId = safeOriginalDocId(req.params.docId);
+      if (!docId || !fs.existsSync(ORIGINALS_DIR)) {
+        return res.json({ deleted: false });
+      }
+      const entries = fs.readdirSync(ORIGINALS_DIR);
+      const match = entries.find(name => name === docId || name.startsWith(`${docId}.`));
+      if (!match) {
+        return res.json({ deleted: false });
+      }
+      const resolvedTarget = path.resolve(path.join(ORIGINALS_DIR, match));
+      const resolvedDir = path.resolve(ORIGINALS_DIR);
+      if (!resolvedTarget.startsWith(resolvedDir + path.sep)) {
+        return res.status(400).json({ deleted: false, error: 'Invalid file path.' });
+      }
+      fs.unlinkSync(resolvedTarget);
+      res.json({ deleted: true });
+    } catch (err: any) {
+      console.warn('Failed to delete original file:', err?.message || err);
+      res.status(500).json({ deleted: false, error: 'Could not delete the original file.' });
     }
   });
 
