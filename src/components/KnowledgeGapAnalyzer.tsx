@@ -2,23 +2,58 @@ import React, { useState } from 'react';
 import { 
   HelpCircle, 
   CheckCircle2, 
-  Plus
+  Plus,
+  Sparkles,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
-import { KnowledgeGap, DocumentCategory } from '../types';
+import { KnowledgeGap, DocumentCategory, DocumentRecord, TimelineEvent } from '../types';
 
 interface KnowledgeGapAnalyzerProps {
   gaps: KnowledgeGap[];
+  documents: DocumentRecord[];
+  timeline: TimelineEvent[];
   onToggleGapResolved: (id: string) => void;
   onAddGap: (gap: KnowledgeGap) => void;
+  onGenerateGaps?: (generated: KnowledgeGap[]) => void;
 }
 
 export const KnowledgeGapAnalyzer: React.FC<KnowledgeGapAnalyzerProps> = ({
   gaps,
+  documents,
+  timeline,
   onToggleGapResolved,
   onAddGap,
+  onGenerateGaps,
 }) => {
   const [filter, setFilter] = useState<'All' | 'Open' | 'Resolved'>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+
+  const handleGenerateGaps = async () => {
+    setIsGenerating(true);
+    setGenerationError(null);
+    try {
+      const res = await fetch('/api/gemini/generate-knowledge-gaps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documents, timeline, existingGapDescriptions: gaps.map(g => g.gapDescription) }),
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      const generated: KnowledgeGap[] = Array.isArray(data.gaps) ? data.gaps : [];
+      if (generated.length === 0) {
+        setGenerationError(data.note || 'No new evidentiary gaps could be identified from the documents currently in the case record.');
+      } else if (onGenerateGaps) {
+        onGenerateGaps(generated);
+      }
+    } catch (err) {
+      setGenerationError('AI generation failed. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
   const [newGap, setNewGap] = useState({
     gapDescription: '',
     category: 'Medical' as DocumentCategory,
@@ -68,15 +103,33 @@ export const KnowledgeGapAnalyzer: React.FC<KnowledgeGapAnalyzerProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-sm transition-colors"
-          id="add-gap-btn"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Flag New Evidentiary Gap</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleGenerateGaps}
+            disabled={isGenerating}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-sm transition-colors"
+            id="generate-gaps-ai-btn"
+          >
+            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            <span>{isGenerating ? 'Analyzing…' : 'Generate with AI'}</span>
+          </button>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-sm transition-colors"
+            id="add-gap-btn"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Flag New Evidentiary Gap</span>
+          </button>
+        </div>
       </div>
+
+      {generationError && (
+        <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{generationError}</span>
+        </div>
+      )}
 
       {/* Filter Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 text-xs">
@@ -94,6 +147,16 @@ export const KnowledgeGapAnalyzer: React.FC<KnowledgeGapAnalyzerProps> = ({
           </button>
         ))}
       </div>
+
+      {gaps.length === 0 && (
+        <div className="flex flex-col items-center justify-center text-center py-16 px-6 bg-white border border-slate-200 rounded-xl">
+          <HelpCircle className="w-10 h-10 text-slate-300 mb-3" />
+          <h2 className="text-sm font-bold text-slate-900">No Evidentiary Gaps Identified Yet</h2>
+          <p className="text-xs text-slate-500 mt-1 max-w-md">
+            Click &quot;Generate with AI&quot; to analyze the documents and timeline currently in the case record for uncorroborated assertions, or flag a gap manually.
+          </p>
+        </div>
+      )}
 
       {/* Gaps Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

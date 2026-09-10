@@ -621,8 +621,15 @@ export default function App() {
         {activeTab === 'gaps' && (
           <KnowledgeGapAnalyzer
             gaps={knowledgeGaps}
+            documents={documents}
+            timeline={timeline}
             onToggleGapResolved={handleToggleGapResolved}
             onAddGap={handleAddGap}
+            onGenerateGaps={(generated) => setKnowledgeGaps(prev => {
+              const byId = new Map(prev.map(g => [g.id, g]));
+              generated.forEach(g => byId.set(g.id, g));
+              return Array.from(byId.values());
+            })}
           />
         )}
 

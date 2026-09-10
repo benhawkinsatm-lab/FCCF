@@ -1719,6 +1719,94 @@ If there are no school-related documents at all, set "schoolAudit" to null. If t
     }
   });
 
+  // AI identify Knowledge Gaps: uncorroborated assertions in the case record
+  // that would benefit from a targeted subpoena / discovery request.
+  app.post('/api/gemini/generate-knowledge-gaps', async (req, res) => {
+    const { documents = [], timeline = [], existingGapDescriptions = [] } = req.body;
+    const ai = getAiClient();
+
+    const emptyResult = {
+      gaps: [],
+      note: (documents.length === 0 && timeline.length === 0)
+        ? 'No documents or timeline events are in the case record yet, so no gaps can be identified.'
+        : 'AI generation is unavailable right now. No evidentiary gaps could be identified.'
+    };
+
+    if (!ai || (documents.length === 0 && timeline.length === 0)) {
+      return res.json(emptyResult);
+    }
+
+    try {
+      const docSummary = documents.slice(0, 60).map((d: any) =>
+        `[${d.id}] (${d.category}, ${d.date}) ${d.title} -- Source: ${d.sourceOrigin} -- Excerpt: ${(d.excerpt || '').slice(0, 300)}`
+      ).join('\n');
+      const timelineSummary = timeline.slice(0, 60).map((e: any) =>
+        `[${e.id}] ${e.date} (${e.category}): ${e.title} -- ${e.description || ''}`
+      ).join('\n');
+      const existingList = (existingGapDescriptions || []).slice(0, 40).join(' | ');
+
+      const prompt = `${CASE_CONTEXT_PROMPT}
+
+TASK: Act as a family law discovery analyst. Review the documents and timeline
+below and identify EVIDENTIARY GAPS -- specific assertions, incidents, or
+claims that appear in the case record but are NOT yet corroborated by an
+independent document (e.g. a party's own account of an incident with no
+supporting school/medical/police/third-party record; a claimed diagnosis or
+event referenced only in passing; a missing category of records implied by
+what IS in evidence).
+
+DOCUMENTS IN THE CASE RECORD:
+"""
+${docSummary || '(none ingested yet)'}
+"""
+
+TIMELINE EVENTS IN THE CASE RECORD:
+"""
+${timelineSummary || '(none recorded yet)'}
+"""
+
+GAPS ALREADY FLAGGED (do not repeat these): ${existingList || '(none)'}
+
+STRICT RULES (zero-hallucination):
+- Every gap must be grounded in something that actually appears in the material above (an assertion, a partial record, a reference to an institution or event). Cite the real document/timeline IDs it originates from in "originDocIds".
+- Do NOT invent institutions, dates, diagnoses, or incidents not present in the supplied material.
+- Do not duplicate a gap already flagged (see list above).
+- Return at most 8 gaps, the most significant first.
+
+Return strict JSON:
+{ "gaps": [ { "id": "GAP-AI-<n>", "gapDescription": "string", "category": "Medical" | "Education" | "Legal/Court" | "Direct Communication" | "Financial", "urgency": "Critical" | "High" | "Routine", "targetCorroboration": "string (the institution/record type that would corroborate this)", "recommendedQuestion": "string", "suggestedAction": "string (a concrete FCWA procedural step)", "originDocIds": ["DOC-... or EVT-..."], "relatedChild": "Isabella Hawkins" | "Mason Hawkins" | "Both" | "N/A" } ] }
+`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' }
+      });
+
+      const parsed = JSON.parse(response.text?.trim() || '{}');
+      const gaps = Array.isArray(parsed.gaps) ? parsed.gaps.filter((g: any) =>
+        g && g.id && g.gapDescription
+      ).map((g: any) => ({
+        id: g.id,
+        gapDescription: g.gapDescription,
+        category: g.category || 'Legal/Court',
+        urgency: ['Critical', 'High', 'Routine'].includes(g.urgency) ? g.urgency : 'Routine',
+        targetCorroboration: g.targetCorroboration || 'Not specified',
+        recommendedQuestion: g.recommendedQuestion || '',
+        suggestedAction: g.suggestedAction || '',
+        resolved: false,
+        detectedBy: 'AI Review',
+        originDocIds: Array.isArray(g.originDocIds) ? g.originDocIds : [],
+        relatedChild: g.relatedChild || 'N/A',
+      })) : [];
+
+      res.json({ gaps });
+    } catch (err: any) {
+      console.warn('Gemini Knowledge Gap generation error:', err?.message || err);
+      res.json(emptyResult);
+    }
+  });
+
   // AI extract structured Communication Log entries (tone/productivity classified)
   // from ingested Direct Communication documents. Zero-hallucination: only
   // documents that clearly evidence an SMS/email exchange produce a record.
