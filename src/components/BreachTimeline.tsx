@@ -93,7 +93,7 @@ export const PARENTING_ORDER_CATEGORIES: OrderCategoryOption[] = [
     id: 'Non-Disparagement',
     name: 'Non-Disparagement',
     orderClauses: 'Order 11.2',
-    description: 'Child denigration at school gate, BJFC match grounds & social media',
+    description: 'Child denigration at school gate & social media',
     badgeBg: 'bg-red-50',
     badgeText: 'text-red-800',
     borderCol: 'border-red-200',
@@ -194,11 +194,10 @@ export const getBreachCategories = (breach: TimelineEvent): ParentingOrderCatego
     cats.add('Non-Disparagement');
   }
 
-  // Travel/Passports (Order 13.1 / travel / margaret river)
+  // Travel/Passports (Order 13.1 / travel / regional trip)
   if (
     ord.includes('13.1') || 
     desc.includes('travel') || 
-    desc.includes('margaret river') || 
     desc.includes('regional trip')
   ) {
     cats.add('Travel/Passports');
@@ -238,10 +237,10 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
     { year: 2024, month: 1, label: 'Feb 2024', note: 'Gate Denigration & Uniform Lag' },
     { year: 2024, month: 2, label: 'Mar 2024', note: 'Unexcused Absences & Easter' },
     { year: 2024, month: 3, label: 'Apr 2024', note: 'Care Schedule Dispute' },
-    { year: 2024, month: 4, label: 'May 2024', note: '126h Dental Lag & Football Abuse' },
-    { year: 2024, month: 5, label: 'Jun 2024', note: 'BJFC Gate Altercation & False Affidavit' },
-    { year: 2024, month: 6, label: 'Jul 2024', note: 'SJOG Hospital Concealment' },
-    { year: 2024, month: 7, label: 'Aug 2024', note: 'Margaret River Trip & Social Media' },
+    { year: 2024, month: 4, label: 'May 2024', note: 'Dental Lag & Communication Delay' },
+    { year: 2024, month: 5, label: 'Jun 2024', note: 'School Gate Altercation' },
+    { year: 2024, month: 6, label: 'Jul 2024', note: 'Medical Notice Dispute' },
+    { year: 2024, month: 7, label: 'Aug 2024', note: 'Regional Trip & Social Media' },
     { year: 2024, month: 8, label: 'Sep 2024', note: 'Pre-Trial Preparation' },
   ];
 
@@ -310,6 +309,15 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
   const allBreaches = useMemo(() => {
     return timeline.filter(e => e.orderBreachFlag);
   }, [timeline]);
+
+  // Live pattern counts, derived from actual breach data (never hardcoded)
+  const patternCounts = useMemo(() => {
+    const fridayChangeovers = allBreaches.filter(b => new Date(b.date).getDay() === 5 || b.breachedOrderNumber?.includes('Order 4.2')).length;
+    const communicationBlackouts = allBreaches.filter(b => b.breachedOrderNumber?.includes('Order 9.1')).length;
+    const publicDenigration = allBreaches.filter(b => b.breachedOrderNumber?.includes('Order 11.2')).length;
+    const medicalTravelEvasion = allBreaches.filter(b => b.breachedOrderNumber?.includes('Order 5.1') || b.breachedOrderNumber?.includes('Order 13.1')).length;
+    return { fridayChangeovers, communicationBlackouts, publicDenigration, medicalTravelEvasion };
+  }, [allBreaches]);
 
   // Category Breach Counts (across all breaches)
   const categoryBreachCounts = useMemo(() => {
@@ -643,7 +651,7 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
               <span className="px-2 py-0.5 bg-rose-100 text-rose-800 font-bold text-[10px] rounded">
                 Pattern A (Order 4.2)
               </span>
-              <span className="text-[11px] font-bold text-rose-700">4 Incidents</span>
+              <span className="text-[11px] font-bold text-rose-700">{patternCounts.fridayChangeovers} Incidents</span>
             </div>
             <h3 className="text-xs font-bold text-slate-900">Friday 15:30 Pre-Weekend Cut-Off</h3>
             <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
@@ -660,7 +668,7 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
             onClick={() => {
               setActivePatternFilter(activePatternFilter === 'communication-blackouts' ? null : 'communication-blackouts');
               setCurrentYear(2024);
-              setCurrentMonth(4); // Jump to May 2024 (Dental 126h)
+              setCurrentMonth(4); // Jump to May 2024
               setSelectedDay('2024-05-07');
             }}
             className={`p-3 text-left rounded-lg transition-all ${
@@ -673,7 +681,7 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
               <span className="px-2 py-0.5 bg-amber-100 text-amber-800 font-bold text-[10px] rounded">
                 Pattern B (Order 9.1)
               </span>
-              <span className="text-[11px] font-bold text-amber-700">6 Incidents</span>
+              <span className="text-[11px] font-bold text-amber-700">{patternCounts.communicationBlackouts} Incidents</span>
             </div>
             <h3 className="text-xs font-bold text-slate-900">Strategic 42h Comm Blackouts</h3>
             <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
@@ -690,7 +698,7 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
             onClick={() => {
               setActivePatternFilter(activePatternFilter === 'public-denigration' ? null : 'public-denigration');
               setCurrentYear(2024);
-              setCurrentMonth(4); // Jump to May 2024 (BJFC)
+              setCurrentMonth(4); // Jump to May 2024
               setSelectedDay('2024-05-19');
             }}
             className={`p-3 text-left rounded-lg transition-all ${
@@ -703,11 +711,11 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
               <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 font-bold text-[10px] rounded">
                 Pattern C (Order 11.2)
               </span>
-              <span className="text-[11px] font-bold text-indigo-700">4 Incidents</span>
+              <span className="text-[11px] font-bold text-indigo-700">{patternCounts.publicDenigration} Incidents</span>
             </div>
             <h3 className="text-xs font-bold text-slate-900">Extracurricular Public Denigration</h3>
             <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
-              Verbal abuse and social media disparagement staged in public view at Sunday BJFC football matches and school gates in front of Mason and Isabella.
+              Verbal abuse and social media disparagement documented at school gate handovers and in front of Mason and Isabella.
             </p>
             <div className="mt-2 text-[10px] text-indigo-700 font-semibold flex items-center gap-1">
               <span>Isolate Denigration Events</span>
@@ -720,7 +728,7 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
             onClick={() => {
               setActivePatternFilter(activePatternFilter === 'medical-travel-evasion' ? null : 'medical-travel-evasion');
               setCurrentYear(2024);
-              setCurrentMonth(6); // Jump to July 2024 (Hospital)
+              setCurrentMonth(6); // Jump to July 2024
               setSelectedDay('2024-07-04');
             }}
             className={`p-3 text-left rounded-lg transition-all ${
@@ -733,11 +741,11 @@ export const BreachTimeline: React.FC<BreachTimelineProps> = ({
               <span className="px-2 py-0.5 bg-purple-100 text-purple-800 font-bold text-[10px] rounded">
                 Pattern D (Order 5.1 & 13.1)
               </span>
-              <span className="text-[11px] font-bold text-purple-700">4 Incidents</span>
+              <span className="text-[11px] font-bold text-purple-700">{patternCounts.medicalTravelEvasion} Incidents</span>
             </div>
             <h3 className="text-xs font-bold text-slate-900">Medical & Regional Travel Evasion</h3>
             <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
-              Concealing hospital emergency admissions (SJOG Midland asthma) and booking regional trips (Margaret River) without mandatory 28-day notice.
+              Concealing hospital emergency admissions and booking regional trips without mandatory 28-day notice.
             </p>
             <div className="mt-2 text-[10px] text-purple-700 font-semibold flex items-center gap-1">
               <span>Isolate Medical/Travel</span>

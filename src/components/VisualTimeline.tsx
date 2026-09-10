@@ -106,7 +106,7 @@ export const CATEGORY_CONFIGS: Record<DocumentCategory, CategoryConfig> = {
   'Extracurricular': {
     category: 'Extracurricular',
     label: 'Extracurricular & Sports',
-    description: 'BJFC junior football, coach statements & sideline events',
+    description: 'Junior football, coach statements & sideline events',
     icon: Trophy,
     badgeBg: 'bg-emerald-100',
     badgeText: 'text-emerald-900',
@@ -1486,7 +1486,7 @@ export const VisualTimeline: React.FC<VisualTimelineProps> = ({
                   required
                   value={newEvent.sourceOrigin}
                   onChange={(e) => setNewEvent({ ...newEvent, sourceOrigin: e.target.value })}
-                  placeholder="e.g. Bassendean Primary School, Sue-Anne SMS, St John of God"
+                  placeholder="e.g. Bassendean Primary School, Sue-Anne SMS, Medical Provider"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
                 />
               </div>

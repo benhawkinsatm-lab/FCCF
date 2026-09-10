@@ -79,8 +79,7 @@ export const CaseDossierExportModal: React.FC<CaseDossierExportModalProps> = ({
         affContent += `1. I am the Applicant Father in this matter and I make this affidavit from my own knowledge and records.\n`;
         affContent += `2. Since the Interim Orders of 14 November 2023, I have sought to maintain stable shared care of our children Isabella and Mason.\n`;
         affContent += `3. The Respondent Mother has engaged in continuous contraventions of Orders 1.1, 7.3, and 9.1 as detailed in the attached Impeachment Schedule.\n`;
-        affContent += `4. Specifically regarding Order 7.3, on 24 May 2024 Mason suffered an acute asthma exacerbation requiring emergency hospitalization at St John of God Midland Hospital [Annexure BJH-8]. The Respondent failed to provide emergency notice within 4 hours.\n`;
-        affContent += `5. Furthermore, under Order 9.1 the Respondent has repeatedly exceeded the 42-hour response mandate, accumulating average lags exceeding 68 hours.\n\n`;
+        affContent += `4. Under Order 9.1 the Respondent has repeatedly exceeded the 42-hour response mandate, accumulating average lags exceeding 68 hours.\n\n`;
         affContent += `Sworn by Benjamin James Hawkins\nat Perth, Western Australia on ${new Date().toLocaleDateString('en-AU')}\n`;
         folder?.file("01_FORM_2_AFFIDAVIT_DRAFT.md", affContent);
       }
@@ -105,7 +104,7 @@ export const CaseDossierExportModal: React.FC<CaseDossierExportModalProps> = ({
         expertContent += `Matter: Hawkins & Hawkins (File No. 4344/2023)\n\n`;
         expertContent += `To: Court-Appointed Expert\n`;
         expertContent += `From: Benjamin James Hawkins (Applicant Father)\n\n`;
-        expertContent += `This briefing pack provides neutral third-party verification including attendance certificates from Bassendean Primary School, emergency medical records from St John of God Midland Hospital, and chronological communication logs.\n`;
+        expertContent += `This briefing pack provides neutral third-party verification including attendance certificates from Bassendean Primary School, relevant medical records, and chronological communication logs.\n`;
         folder?.file("03_SINGLE_EXPERT_WITNESS_BRIEF.md", expertContent);
       }
 

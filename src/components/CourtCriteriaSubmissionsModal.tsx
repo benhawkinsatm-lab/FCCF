@@ -73,7 +73,7 @@ export const CourtCriteriaSubmissionsModal: React.FC<CourtCriteriaSubmissionsMod
 ### 1. STATUTORY FRAMEWORK & SUMMARY
 1. Pursuant to section 60CA of the *Family Law Act 1975* (Cth) and section 66A of the *Family Court Act 1997* (WA), in deciding whether to make a particular parenting order in relation to a child, the Court must regard the best interests of the child as the paramount consideration.
 2. Section 60CC sets out the mandatory matters the Court must consider in determining what is in the child's best interests.
-3. The Applicant submits that the objective documentary record, supported by independent third-party evidence from Bassendean Primary School, St John of God Midland Hospital, and telecommunication logs, firmly establishes that the proposed parenting orders serve the children's developmental, physical, and psychological best interests.
+3. The Applicant submits that the objective documentary record, supported by independent third-party evidence from Bassendean Primary School, medical records, and telecommunication logs, firmly establishes that the proposed parenting orders serve the children's developmental, physical, and psychological best interests.
 
 ---
 

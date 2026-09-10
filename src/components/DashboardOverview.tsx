@@ -86,7 +86,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               type="text"
               value={quickQuery}
               onChange={(e) => setQuickQuery(e.target.value)}
-              placeholder="Ask AI with zero-hallucination citations (e.g. 'Evidence proving football attendance', 'List 42-hour rule breaches')..."
+              placeholder="Ask AI with zero-hallucination citations (e.g. 'Evidence proving school attendance', 'List 42-hour rule breaches')..."
               className="w-full pl-4 pr-10 py-2.5 bg-slate-900/90 border border-slate-600 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
               id="dashboard-quick-query-input"
             />
@@ -674,7 +674,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 <span className="text-[11px] text-slate-500 font-mono">b. 15 February 2015 (Age 9)</span>
               </div>
               <p className="text-slate-600 text-[11px]">
-                Year 4 at Bassendean PS. Active player U9 Bassendean Junior Football Club (Ben is Assistant Coach). Asthma action plan (SJOG Midland).
+                Year 4 at Bassendean PS.
               </p>
             </div>
           </div>

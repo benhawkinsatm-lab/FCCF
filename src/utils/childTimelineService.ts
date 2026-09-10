@@ -49,7 +49,7 @@ const CATEGORY_KEYWORDS: { category: ChildTimelineCategory; patterns: RegExp[] }
   {
     category: 'Extracurricular & Social',
     patterns: [
-      /\b(football|bjfc|swimming|training|club|sport|birthday|playdate|friends?)\b/i,
+      /\b(football|swimming|training|club|sport|birthday|playdate|friends?)\b/i,
     ],
   },
   {

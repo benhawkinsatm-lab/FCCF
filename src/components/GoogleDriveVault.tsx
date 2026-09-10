@@ -611,7 +611,7 @@ export const GoogleDriveVault: React.FC<GoogleDriveVaultProps> = ({
         category = 'Direct Communication';
       } else if (lower.includes('receipt') || lower.includes('invoice') || lower.includes('fee') || lower.includes('levy') || lower.includes('financial')) {
         category = 'Financial';
-      } else if (lower.includes('sport') || lower.includes('football') || lower.includes('bjfc') || lower.includes('swimming')) {
+      } else if (lower.includes('sport') || lower.includes('football') || lower.includes('swimming')) {
         category = 'Extracurricular';
       }
 

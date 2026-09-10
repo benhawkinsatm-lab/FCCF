@@ -12,7 +12,7 @@ describe('Child Timeline Service & Attribution', () => {
       id: 'EVT-001',
       date: '2024-05-24',
       title: 'Emergency Department Presentation for Acute Asthma',
-      description: 'Mason presented to St John of God Hospital Midland for acute asthma exacerbation.',
+      description: 'Mason presented to hospital for acute asthma exacerbation.',
       category: 'Medical',
       sourceOrigin: 'Hospital Discharge Summary',
       evidentiaryWeight: 'Third-Party Objective',

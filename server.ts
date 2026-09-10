@@ -441,7 +441,7 @@ Primary duties:
       
       cross_examiner: `YOU ARE THE FORENSIC CROSS-EXAMINATION SPECIALIST FOR BENJAMIN HAWKINS IN THE FAMILY COURT OF WA (CASE 4344/2023).
 Primary duties:
-1. Cross-reference any statements, allegations, or affidavits from Sue-Anne Hawkins against verified objective third-party records (Bassendean Primary School attendance audits, St John of God Hospital records, Telstra mobile transcripts, BJFC football coaching rosters).
+1. Cross-reference any statements, allegations, or affidavits from Sue-Anne Hawkins against verified objective third-party records (school attendance audits, medical records, and telecommunications transcripts).
 2. Expose contradictions, omissions, and perjury under Evidence Act 1906 (WA).
 3. Draft surgical, leading cross-examination questions designed to obtain unequivocal admissions during trial.`,
 
@@ -459,7 +459,7 @@ Primary duties:
 
       emergency_injunction: `YOU ARE BENJAMIN HAWKINS'S EMERGENCY CHILD WELFARE & CONTRAVENTION ENFORCEMENT ADVISOR.
 Primary duties:
-1. Handle urgent order breaches: unilateral withholding / relocation without notice (Order 4 & 7) and medical emergency concealment (Order 11 & 12, e.g. St John of God Midland hospital admission).
+1. Handle urgent order breaches: unilateral withholding / relocation without notice (Order 4 & 7) and medical emergency concealment (Order 11 & 12).
 2. Draft immediate procedural actions: Form 2 Contravention Applications, compensatory time requests under s 70NEB, and recovery/injunctive orders.`
     };
 
@@ -477,12 +477,8 @@ Primary duties:
       else if (role === 'emergency_injunction') roleLead = 'Child Welfare & Enforcement Counsel';
 
       res.json({
-        reply: `[${roleLead.toUpperCase()} • CASE 4344/2023]\n\nRegarding your inquiry: "${userInquiry}"\n\n1. **Direct Evidentiary Findings**:\n- **[DOC-2023-011]** FCWA Operative Parenting Orders (Order 4 & 5 school changeovers; Order 9 42-hour response mandate; Order 8 SMS only).\n- **[DOC-2024-008]** St John of God Midland Emergency Discharge Summary proving Mason admitted 4-5 July 2024 for acute asthma without required notice to Father (Order 11 & 12 contravention).\n- **[DOC-2024-006]** BJFC Incident Log disproving Respondent's claim that Father never attends sports, establishing Father as registered Assistant Coach.\n\n2. **Evidentiary Weight & Admissibility Analysis**:\nUnder the active filter [${evidentiaryFilter}], records from Bassendean Primary School [DOC-2024-002] and St John of God Hospital [DOC-2024-008] represent **Third-Party Objective** records. Under Evidence Act 1906 (WA) s 79C (business records), these are admissible to prove the truth of their contents without viva voce evidence from clinicians, substantially outweighing uncorroborated allegations.\n\n3. **Tactical Recommendation**:\nDeploy these verified records in the Form 2 Contravention Application and Annexures BJH-1 through BJH-9 to establish a documented pattern of parental alienation and contempt.`,
-        citations: [
-          { docId: 'DOC-2023-011', id: 'DOC-2023-011', title: 'FCWA Operative Orders' },
-          { docId: 'DOC-2024-008', id: 'DOC-2024-008', title: 'SJOG Midland Hospital Emergency Summary' },
-          { docId: 'DOC-2024-006', id: 'DOC-2024-006', title: 'BJFC Incident Log & Coaching Accreditation' }
-        ],
+        reply: `[${roleLead.toUpperCase()} • CASE 4344/2023]\n\nRegarding your inquiry: "${userInquiry}"\n\nThe AI assistant is temporarily unavailable and could not generate a grounded response citing verified case documents. Please retry shortly, or review the Document Library and Timeline directly for primary evidence relevant to this inquiry.`,
+        citations: [],
         modelUsed: selectedModel,
         roleUsed: role
       });
@@ -833,9 +829,9 @@ Return JSON:
           breachSeverity = 'Moderate';
           breachSummary = 'Document demonstrates disruptions to school attendance during care changeover periods.';
         }
-      } else if (lower.includes('hospital') || lower.includes('asthma') || lower.includes('sjog') || lower.includes('doctor') || lower.includes('emergency') || lower.includes('medical') || lower.includes('paediatric')) {
+      } else if (lower.includes('hospital') || lower.includes('asthma') || lower.includes('doctor') || lower.includes('emergency') || lower.includes('medical') || lower.includes('paediatric')) {
         category = 'Medical';
-        sourceOrigin = lower.includes('sjog') || lower.includes('midland') ? 'St John of God Midland Hospital' : 'Medical Practitioner';
+        sourceOrigin = 'Medical Practitioner';
         evidentiaryWeight = 'Third-Party Objective';
         weightJustification = 'Clinical health record maintained in ordinary course of medical diagnosis under Evidence Act 1906 (WA).';
         statutoryFactor = 'FLA 1975 s 60CC(2)(b) (Need to protect children from physical and psychological harm/neglect)';
@@ -881,9 +877,9 @@ Return JSON:
         evidentiaryWeight = 'Third-Party Objective';
         weightJustification = 'Bank and agency financial ledger with audited transaction references.';
         statutoryFactor = 'FLA 1975 s 60CC(3)(ca) (Fulfillment of parental financial maintenance)';
-      } else if (lower.includes('football') || lower.includes('bjfc') || lower.includes('coach') || lower.includes('swimming') || lower.includes('club')) {
+      } else if (lower.includes('football') || lower.includes('coach') || lower.includes('swimming') || lower.includes('club')) {
         category = 'Extracurricular';
-        sourceOrigin = 'Bassendean Junior Football Club';
+        sourceOrigin = 'Sporting Association';
         evidentiaryWeight = 'Third-Party Objective';
         weightJustification = 'Community sporting association official register and accreditation log.';
         statutoryFactor = 'FLA 1975 s 60CC(3)(b) (Nature of the relationship of the child with each parent)';
@@ -960,11 +956,11 @@ ${rawText.slice(0, 12000)}
 """
 
 REQUIREMENTS FOR RECORDING:
-1. Provide a formal, court-admissible Title (e.g. "Bassendean Primary School Attendance Ledger", "Telstra Mobile Call & SMS Transcript", "St John of God Midland Emergency Discharge Summary").
+1. Provide a formal, court-admissible Title (e.g. "Bassendean Primary School Attendance Ledger", "Telstra Mobile Call & SMS Transcript", "Medical Provider Discharge Summary").
 2. Assign strictly one Category:
    "Medical" | "Education" | "Legal/Court" | "Direct Communication" | "Financial" | "Extracurricular"
 3. Identify the true document Date (YYYY-MM-DD) from the text.
-4. Identify official Source Origin (e.g. "Bassendean Primary School", "St John of God Midland Hospital", "Telstra Mobile Records", "Sue-Anne Hawkins").
+4. Identify official Source Origin (e.g. "Bassendean Primary School", "Medical Provider", "Telstra Mobile Records", "Sue-Anne Hawkins").
 5. Determine Evidentiary Weight: "Sworn/Official" | "Third-Party Objective" | "Unverified Claim" with legal rationale under Evidence Act 1906 (WA).
 6. Extract a verbatim Key Excerpt with quotes (probative value for court).
 7. Synthesize a concise 1-2 sentence Key Fact.
@@ -1086,7 +1082,7 @@ Respond with strict JSON:
       ? 'Legal/Court'
       : lower.includes('invoice') || lower.includes('receipt') || lower.includes('fee') || lower.includes('child support')
       ? 'Financial'
-      : lower.includes('football') || lower.includes('bjfc') || lower.includes('swim') || lower.includes('training')
+      : lower.includes('football') || lower.includes('swim') || lower.includes('training')
       ? 'Extracurricular'
       : 'Direct Communication';
 
@@ -1179,7 +1175,7 @@ ${textToAnalyze.slice(0, 15000)}
 
 Extract comprehensive, court-admissible legal metadata across all sections:
 1. Document Identification:
-   - "title": Formal court-admissible title (e.g. "St John of God Midland Emergency Discharge Summary")
+   - "title": Formal court-admissible title (e.g. "Medical Provider Emergency Discharge Summary")
    - "documentCategory": strictly one of "Medical" | "Education" | "Legal/Court" | "Direct Communication" | "Financial" | "Extracurricular"
    - "documentDate": YYYY-MM-DD (extract true creation/incident date)
    - "sourceOrigin": Official institution or party author
@@ -1869,7 +1865,7 @@ TASK: Perform a rigorous legal AI assessment of the selected PROPOSED PARENTING 
 For each order in ORDERS TO ASSESS:
 1. Identify proposing party: 'Benjamin Hawkins' (Applicant / Father) or 'Sue-Anne Hawkins' (Respondent / Mother).
 2. Evaluate against statutory best interests factors (e.g. s 60CC(2)(a) safety from harm/neglect/concealment, s 60CC(2)(b) meaningful relationship, s 60CC(2)(c) developmental/educational/emotional needs, s 60CC(3)(d) care stability).
-3. Evaluate against documented party history (prior contraventions, medical concealment at SJOG Midland, school absenteeism, 68.4-hour communication latency).
+3. Evaluate against documented party history (prior contraventions, medical concealment, school absenteeism, 68.4-hour communication latency).
 4. Explicitly assign 'riskLevel': 'Low' | 'Medium' | 'High' | 'Critical'.
 5. Include 'evidenceCitations': array of objects { citation, docId, title, exhibitNumber, relevance } explicitly citing verified case exhibits (such as Annexure BJH-1 DOC-2023-011, BJH-2 DOC-2024-002, BJH-4 DOC-2024-004, BJH-8 DOC-2024-008).
 6. Provide drafting improvements and suggested safeguard clause (or cross-examination counter-submission if proposed by Sue-Anne).
@@ -1897,7 +1893,7 @@ Return a strict JSON object:
           {
             "citation": "Annexure BJH-8 (DOC-2024-008)",
             "docId": "DOC-2024-008",
-            "title": "St John of God Midland Hospital ED Discharge Summary",
+            "title": "Medical Provider ED Discharge Summary",
             "exhibitNumber": "BJH-8",
             "relevance": "string"
           }

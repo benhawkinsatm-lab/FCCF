@@ -65,7 +65,7 @@ export const METADATA_CATEGORIES: CategorySchemaItem[] = [
     statutoryContext: 'Orders 11 & 12 (Notice of medical issues & practitioner authorisation) & Best Interests FLA s 60CC',
     badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300',
     icon: Stethoscope,
-    suggestedTags: ['Medical', 'Asthma', 'Order 11 & 12', 'Prescription', 'Emergency', 'SJOG Midland', 'Speech Therapy', 'GP Clinic'],
+    suggestedTags: ['Medical', 'Asthma', 'Order 11 & 12', 'Prescription', 'Emergency', 'Speech Therapy', 'GP Clinic'],
   },
   {
     value: 'Education',
@@ -106,11 +106,11 @@ export const METADATA_CATEGORIES: CategorySchemaItem[] = [
   {
     value: 'Extracurricular',
     label: 'Extracurricular',
-    description: 'Bassendean Junior Football Club (BJFC), swimming lessons, training sessions & weekend sport fixtures',
+    description: 'Swimming lessons, training sessions & weekend sport fixtures',
     statutoryContext: 'FLA 1975 s 60CC(3)(b) (Children’s sporting commitments & parental engagement)',
     badgeClass: 'bg-indigo-50 text-indigo-800 border-indigo-300',
     icon: Trophy,
-    suggestedTags: ['Extracurricular', 'BJFC', 'Football', 'Training Schedule', 'Weekend Fixtures', 'Coaching Staff', 'Swimming'],
+    suggestedTags: ['Extracurricular', 'Football', 'Training Schedule', 'Weekend Fixtures', 'Coaching Staff', 'Swimming'],
   },
 ];
 
@@ -1137,7 +1137,7 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
                                          cat.value === 'Legal/Court' ? 'FCWA Orders, Affidavits, Subpoenas' :
                                          cat.value === 'Direct Communication' ? 'SMS, Emails, 42h Mandate (Order 9.1)' :
                                          cat.value === 'Financial' ? 'Child Support, Invoices, Fees' :
-                                         'Sports, BJFC, Swimming, Fixtures'}
+                                         'Sports, Swimming, Fixtures'}
                         </option>
                       ))}
                     </select>

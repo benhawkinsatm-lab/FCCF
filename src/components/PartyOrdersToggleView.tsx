@@ -480,7 +480,7 @@ ${order.assessment?.suggestedSafeguardClause ? `\nSUGGESTED COUNSEL SAFEGUARD / 
             <p className="text-xs text-slate-200/90 leading-relaxed">
               {activeParty === 'mine'
                 ? "Evaluates Applicant Father's draft orders against Family Law Act 1975 s60CC best interests tests, verifies enforceability, cross-checks past parental disputes, and generates self-executing safeguard clauses."
-                : "Evaluates Respondent Mother's draft orders against documented medical concealment (SJOG Midland), school attendance audits, and travel breaches to formulate cross-examination counter-submissions for trial counsel."}
+                : "Evaluates Respondent Mother's draft orders against documented medical concealment, school attendance audits, and travel breaches to formulate cross-examination counter-submissions for trial counsel."}
             </p>
           </div>
 

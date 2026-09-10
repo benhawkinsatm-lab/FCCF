@@ -164,7 +164,7 @@ export function generateSampleCourtDocumentFile(): File {
   // Document Heading
   ctx.textAlign = 'center';
   ctx.font = 'bold 22px serif';
-  ctx.fillText('ST JOHN OF GOD MIDLAND HOSPITAL DISCHARGE NOTICE', canvas.width / 2, 470);
+  ctx.fillText('HOSPITAL EMERGENCY DEPARTMENT DISCHARGE NOTICE', canvas.width / 2, 470);
   ctx.font = 'italic 16px serif';
   ctx.fillText('Evidentiary Annexure BJH-04 — Compliance with Interim Order 5.1', canvas.width / 2, 505);
 
@@ -176,7 +176,7 @@ export function generateSampleCourtDocumentFile(): File {
   const bodyLines = [
     'PATIENT IDENTIFICATION & CLINICAL SUMMARY:',
     'Patient Name: Isabella Hawkins     Date of Birth: 14/05/2016 (Age: 7)',
-    'Facility: St John of God Midland Public Hospital (Emergency Department)',
+    'Facility: Hospital Emergency Department',
     'Admission Date: 20 November 2023 at 18:42 AWST',
     'Discharge Date: 21 November 2023 at 08:30 AWST',
     '',
@@ -251,6 +251,6 @@ export function generateSampleCourtDocumentFile(): File {
     u8arr[n] = bstr.charCodeAt(n);
   }
   const blob = new Blob([u8arr], { type: mime });
-  return new File([blob], 'SJOG_Hospital_Discharge_Notice_Order_5.1.png', { type: 'image/png' });
+  return new File([blob], 'Hospital_Discharge_Notice_Order_5.1.png', { type: 'image/png' });
 }
 

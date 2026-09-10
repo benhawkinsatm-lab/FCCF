@@ -71,9 +71,6 @@ export const SingleExpertBriefingModal: React.FC<SingleExpertBriefingModalProps>
 ### B. MASON HAWKINS (Born 22 May 2015, Age 9)
 - **Schooling:** Bassendean Primary School (Year 4). Enjoys practical science, reading, and sports.
 - **Medical Profile - Chronic Asthma:** Mason suffers from chronic bronchial asthma requiring a strict GP Asthma Action Plan (Ventolin + daily preventer Seretide).
-- **Critical Medical Incident (24 May 2024):** Mason experienced an acute asthma exacerbation during Mother's care requiring Emergency Department admission at St John of God Midland Hospital [Exhibit BJH-8].
-  - The Mother failed to notify the Father within the mandatory 4-hour window under Order 7.3, only mentioning the hospitalization 28 hours later via text message.
-  - The Father attended the hospital immediately upon learning of the discharge to coordinate follow-up with the family GP and purchase replacement spacer devices.
 
 ---
 
