@@ -18,7 +18,9 @@ import {
   FileCheck,
   Database,
   FolderSync as FolderSyncIcon,
-  MessagesSquare
+  MessagesSquare,
+  LogOut,
+  ShieldQuestion
 } from 'lucide-react';
 import { CASE_METADATA } from '../data/caseData';
 
@@ -58,6 +60,12 @@ interface NavbarProps {
   issuesCount?: number;
   tickedOrdersCount?: number;
   openParentResolutionsCount?: number;
+  // Basic Admin / Read Only auth (see src/hooks/useAuth.ts). role/onLogout
+  // are left undefined when auth isn't configured on the server, in which
+  // case the badge/logout button simply don't render.
+  role?: 'admin' | 'readonly';
+  onLogout?: () => void;
+  isReadOnly?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -74,6 +82,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   issuesCount = 0,
   tickedOrdersCount = 0,
   openParentResolutionsCount = 0,
+  role,
+  onLogout,
+  isReadOnly = false,
 }) => {
   const tabs = [
     { id: 'dashboard' as ActiveTab, label: 'Command Center', icon: LayoutDashboard },
@@ -129,6 +140,30 @@ export const Navbar: React.FC<NavbarProps> = ({
             Strict Zero-Hallucination
           </span>
 
+          {role && (
+            <span
+              className={`px-2 py-0.5 rounded text-[11px] font-medium flex items-center gap-1 border ${
+                role === 'admin'
+                  ? 'bg-indigo-950/80 text-indigo-300 border-indigo-800/60'
+                  : 'bg-slate-800 text-slate-300 border-slate-700'
+              }`}
+              title={role === 'admin' ? 'Full read/write access' : 'View-only access'}
+            >
+              <ShieldQuestion className="w-3 h-3" />
+              {role === 'admin' ? 'Admin' : 'Read Only'}
+            </span>
+          )}
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded text-xs transition-colors flex items-center gap-1"
+              title="Sign out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           <button
             onClick={openStorageModal}
             id="top-storage-btn"
@@ -141,8 +176,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           <button
-            onClick={openIngestion}
-            className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded text-xs transition-colors flex items-center gap-1 shadow-sm"
+            onClick={isReadOnly ? undefined : openIngestion}
+            disabled={isReadOnly}
+            title={isReadOnly ? 'Read Only mode: ingestion is disabled.' : undefined}
+            className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded text-xs transition-colors flex items-center gap-1 shadow-sm"
             id="top-ingest-btn"
           >
             <UploadCloud className="w-3.5 h-3.5" />

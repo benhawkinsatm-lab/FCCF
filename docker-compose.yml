@@ -35,6 +35,8 @@ services:
       - DATABASE_URL=postgres://${POSTGRES_USER:-fcwa_user}:${POSTGRES_PASSWORD:-fcwa_secure_password}@postgres:5432/${POSTGRES_DB:-fcwa_case_db}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - DATA_DIR=/app/data
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - READONLY_PASSWORD=${READONLY_PASSWORD:-}
     volumes:
       - app_data:/app/data
       - ./public/upload:/app/public/upload

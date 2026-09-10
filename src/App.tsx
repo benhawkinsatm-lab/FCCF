@@ -28,6 +28,8 @@ import {
   ParentResolutionRequest
 } from './types';
 import { Navbar, ActiveTab } from './components/Navbar';
+import { LoginScreen } from './components/LoginScreen';
+import { useAuth } from './hooks/useAuth';
 import { DashboardOverview } from './components/DashboardOverview';
 import { FloatingCaseAssistant } from './components/FloatingCaseAssistant';
 
@@ -97,6 +99,9 @@ function TabLoadingSkeleton() {
 }
 
 export default function App() {
+  const { loading: authLoading, authConfigured, role, loginError, isLoggingIn, login, logout } = useAuth();
+  const isReadOnly = authConfigured && role === 'readonly';
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [documents, setDocuments] = useState<DocumentRecord[]>(INITIAL_DOCUMENTS);
   const [timeline, setTimeline] = useState<TimelineEvent[]>(INITIAL_TIMELINE_EVENTS);
@@ -548,6 +553,18 @@ export default function App() {
     });
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (authConfigured && !role) {
+    return <LoginScreen onSubmit={login} error={loginError} isSubmitting={isLoggingIn} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-amber-200 selection:text-slate-900">
       {/* Top Navbar */}
@@ -555,8 +572,11 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         openIngestion={() => setIsIngestionOpen(true)}
-        openBulkImport={handleOpenBulkImport}
+        openBulkImport={isReadOnly ? undefined : handleOpenBulkImport}
         openStorageModal={() => setIsStorageModalOpen(true)}
+        role={authConfigured ? role : undefined}
+        onLogout={authConfigured ? logout : undefined}
+        isReadOnly={isReadOnly}
         syncStatus={syncStatus}
         discrepancyCount={discrepancies.length}
         breachCount={breachCount}

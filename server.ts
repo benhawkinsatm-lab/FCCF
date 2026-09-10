@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
@@ -31,6 +32,64 @@ function getAiClient(): GoogleGenAI | null {
   }
   return aiClient;
 }
+
+// --- Basic two-role auth (Admin / Read Only) -----------------------------
+// Deliberately minimal: a single in-memory session map (this app runs as a
+// single Node process with no external session store), a random opaque
+// token in an httpOnly cookie, and one middleware that gates the handful of
+// endpoints that actually mutate stored case data. Passwords come only from
+// environment variables (see docker-compose.yml / .env), never hardcoded.
+type UserRole = 'admin' | 'readonly';
+const SESSION_COOKIE = 'fccf_session';
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+const sessions = new Map<string, { role: UserRole; expiresAt: number }>();
+
+function pruneExpiredSessions() {
+  const now = Date.now();
+  for (const [token, session] of sessions) {
+    if (session.expiresAt <= now) {
+      sessions.delete(token);
+    }
+  }
+}
+
+function parseCookies(header: string | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!header) return out;
+  for (const part of header.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx === -1) continue;
+    const key = part.slice(0, idx).trim();
+    const value = part.slice(idx + 1).trim();
+    if (key) out[key] = decodeURIComponent(value);
+  }
+  return out;
+}
+
+function getSessionFromRequest(req: express.Request): { role: UserRole; expiresAt: number } | null {
+  pruneExpiredSessions();
+  const cookies = parseCookies(req.headers.cookie);
+  const token = cookies[SESSION_COOKIE];
+  if (!token) return null;
+  return sessions.get(token) || null;
+}
+
+// Gates the data-mutation endpoints. A Read Only session, or no session at
+// all, is refused; an Admin session (or, when neither password is
+// configured, an unauthenticated request -- so the feature is inert until
+// an operator sets both env vars) is allowed through.
+function requireWriteAccess(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const authConfigured = Boolean(process.env.ADMIN_PASSWORD || process.env.READONLY_PASSWORD);
+  if (!authConfigured) {
+    return next();
+  }
+  const session = getSessionFromRequest(req);
+  if (!session || session.role !== 'admin') {
+    return res.status(403).json({ success: false, error: 'Read Only mode: this action requires Admin access.' });
+  }
+  next();
+}
+// --------------------------------------------------------------------------
 
 // Splits long document text into overlapping windows so entity/event
 // extraction sees content that would otherwise fall outside a single
@@ -393,6 +452,49 @@ async function startServer() {
     });
   });
 
+  // Auth: login issues an httpOnly session cookie scoped to a role;
+  // logout clears it; session reports the caller's current role (or
+  // 'none') so the client can render a login screen vs. the app.
+  app.post('/api/auth/login', (req, res) => {
+    const { password } = req.body || {};
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    const readonlyPassword = process.env.READONLY_PASSWORD;
+    let role: UserRole | null = null;
+    if (adminPassword && password === adminPassword) {
+      role = 'admin';
+    } else if (readonlyPassword && password === readonlyPassword) {
+      role = 'readonly';
+    }
+    if (!role) {
+      return res.status(401).json({ success: false, error: 'Incorrect password.' });
+    }
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + SESSION_TTL_MS;
+    sessions.set(token, { role, expiresAt });
+    res.setHeader('Set-Cookie',
+      `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}; Path=/`);
+    res.json({ success: true, role });
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    const cookies = parseCookies(req.headers.cookie);
+    const token = cookies[SESSION_COOKIE];
+    if (token) sessions.delete(token);
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Max-Age=0; Path=/`);
+    res.json({ success: true });
+  });
+
+  app.get('/api/auth/session', (req, res) => {
+    const authConfigured = Boolean(process.env.ADMIN_PASSWORD || process.env.READONLY_PASSWORD);
+    if (!authConfigured) {
+      // Feature is inert until an operator sets both passwords -- treat
+      // every caller as Admin so existing deployments are unaffected.
+      return res.json({ success: true, authConfigured: false, role: 'admin' });
+    }
+    const session = getSessionFromRequest(req);
+    res.json({ success: true, authConfigured: true, role: session ? session.role : null });
+  });
+
   // Self-Hosted PostgreSQL & Persistent Storage Routes
   app.get('/api/storage/state', async (req, res) => {
     try {
@@ -407,7 +509,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/storage/save', async (req, res) => {
+  app.post('/api/storage/save', requireWriteAccess, async (req, res) => {
     try {
       const { data, isManualBackup, caseId } = req.body;
       if (!data || typeof data !== 'object') {
@@ -464,7 +566,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/storage/restore', async (req, res) => {
+  app.post('/api/storage/restore', requireWriteAccess, async (req, res) => {
     try {
       const { fileName } = req.body || {};
       if (!fileName) {
@@ -494,7 +596,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/storage/import', async (req, res) => {
+  app.post('/api/storage/import', requireWriteAccess, async (req, res) => {
     try {
       const payload = req.body;
       const result = await importStoreJson(payload);
@@ -1570,7 +1672,7 @@ Return strict JSON matching these fields.
   // user keeps dropping new files into doesn't re-import the same ones on
   // every run. Path-traversal safe: resolves the requested name against
   // UPLOAD_FOLDER and refuses anything that resolves outside it.
-  app.delete('/api/local-upload/file', (req, res) => {
+  app.delete('/api/local-upload/file', requireWriteAccess, (req, res) => {
     try {
       const name = String(req.query.name || '');
       if (!name || SKIP_UPLOAD_FILES.has(name) || name.startsWith('.')) {
@@ -1621,7 +1723,7 @@ Return strict JSON matching these fields.
     return '.bin';
   }
 
-  app.post('/api/files/:docId', (req, res) => {
+  app.post('/api/files/:docId', requireWriteAccess, (req, res) => {
     try {
       ensureOriginalsDir();
       const docId = safeOriginalDocId(req.params.docId);
@@ -1693,7 +1795,7 @@ Return strict JSON matching these fields.
 
   // Best-effort cleanup, called when a DocumentRecord itself is deleted so
   // an orphaned original-file copy does not sit around on disk forever.
-  app.delete('/api/files/:docId', (req, res) => {
+  app.delete('/api/files/:docId', requireWriteAccess, (req, res) => {
     try {
       const docId = safeOriginalDocId(req.params.docId);
       if (!docId || !fs.existsSync(ORIGINALS_DIR)) {
