@@ -12,6 +12,8 @@ import {
   Sparkles,
   Loader2,
   AlertCircle,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { CommunicationMessage, CommunicationProductivity, DocumentRecord } from '../types';
 import {
@@ -26,6 +28,7 @@ interface CommunicationAnalyticsProps {
   documents: DocumentRecord[];
   onViewDocument: (doc: DocumentRecord) => void;
   onGenerateMessages?: (generated: CommunicationMessage[]) => void;
+  onUpdateMessage?: (message: CommunicationMessage) => void;
 }
 
 export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
@@ -33,6 +36,7 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
   documents,
   onViewDocument,
   onGenerateMessages,
+  onUpdateMessage,
 }) => {
   const [senderFilter, setSenderFilter] = useState<'All' | 'Sue-Anne Hawkins' | 'Benjamin Hawkins'>('All');
   const [toneFilter, setToneFilter] = useState<'All' | 'Hostile' | 'Neutral' | 'Cooperative'>('All');
@@ -487,6 +491,27 @@ export const CommunicationAnalytics: React.FC<CommunicationAnalyticsProps> = ({
                     >
                       <ExternalLink className="w-3 h-3" />
                       <span>{linkedDoc.annexureNumber || linkedDoc.id}</span>
+                    </button>
+                  )}
+                  {onUpdateMessage && (
+                    <button
+                      onClick={() => onUpdateMessage({ ...msg, immutableLock: !msg.immutableLock })}
+                      className={`p-1 rounded transition-colors ml-1 ${
+                        msg.immutableLock
+                          ? 'text-amber-600 bg-amber-50 hover:bg-amber-100'
+                          : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                      }`}
+                      title={
+                        msg.immutableLock
+                          ? 'Locked -- an AI refresh will never overwrite this message. Click to unlock.'
+                          : 'Lock this message so AI refreshes can never overwrite or drop it'
+                      }
+                    >
+                      {msg.immutableLock ? (
+                        <Lock className="w-3.5 h-3.5" />
+                      ) : (
+                        <Unlock className="w-3.5 h-3.5" />
+                      )}
                     </button>
                   )}
                 </div>

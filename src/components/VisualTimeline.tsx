@@ -23,7 +23,9 @@ import {
   ArrowUpDown,
   Columns,
   List,
-  GitCommit
+  GitCommit,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { TimelineEvent, DocumentRecord, DocumentCategory, EvidentiaryWeight } from '../types';
 
@@ -32,6 +34,7 @@ export interface VisualTimelineProps {
   documents: DocumentRecord[];
   onViewDocument: (doc: DocumentRecord) => void;
   onAddEvent: (event: TimelineEvent) => void;
+  onUpdateEvent: (event: TimelineEvent) => void;
 }
 
 export type TimelineViewMode = 'visual-spine' | 'category-swimlanes' | 'compact-table';
@@ -145,6 +148,7 @@ export const VisualTimeline: React.FC<VisualTimelineProps> = ({
   documents,
   onViewDocument,
   onAddEvent,
+  onUpdateEvent,
 }) => {
   // View mode
   const [viewMode, setViewMode] = useState<TimelineViewMode>('visual-spine');
@@ -1063,6 +1067,26 @@ export const VisualTimeline: React.FC<VisualTimelineProps> = ({
                                   <Check className="w-3.5 h-3.5 text-emerald-600" />
                                 ) : (
                                   <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+
+                              <button
+                                onClick={() => onUpdateEvent({ ...event, immutableLock: !event.immutableLock })}
+                                className={`p-1 rounded transition-colors ${
+                                  event.immutableLock
+                                    ? 'text-amber-600 bg-amber-50 hover:bg-amber-100'
+                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                                }`}
+                                title={
+                                  event.immutableLock
+                                    ? 'Locked -- an AI refresh will never overwrite this event. Click to unlock.'
+                                    : 'Lock this event so AI refreshes can never overwrite or drop it'
+                                }
+                              >
+                                {event.immutableLock ? (
+                                  <Lock className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Unlock className="w-3.5 h-3.5" />
                                 )}
                               </button>
                             </div>

@@ -7,6 +7,7 @@ interface TimelineLedgerProps {
   documents: DocumentRecord[];
   onViewDocument: (doc: DocumentRecord) => void;
   onAddEvent: (event: TimelineEvent) => void;
+  onUpdateEvent: (event: TimelineEvent) => void;
 }
 
 export const TimelineLedger: React.FC<TimelineLedgerProps> = ({
@@ -14,6 +15,7 @@ export const TimelineLedger: React.FC<TimelineLedgerProps> = ({
   documents,
   onViewDocument,
   onAddEvent,
+  onUpdateEvent,
 }) => {
   return (
     <VisualTimeline
@@ -21,6 +23,7 @@ export const TimelineLedger: React.FC<TimelineLedgerProps> = ({
       documents={documents}
       onViewDocument={onViewDocument}
       onAddEvent={onAddEvent}
+      onUpdateEvent={onUpdateEvent}
     />
   );
 };

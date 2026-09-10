@@ -568,6 +568,7 @@ export default function App() {
             documents={documents}
             onViewDocument={(doc) => setSelectedDocument(doc)}
             onAddEvent={handleAddTimelineEvent}
+            onUpdateEvent={handleAddTimelineEvent}
           />
         )}
 
@@ -687,6 +688,9 @@ export default function App() {
             onViewDocument={(doc) => setSelectedDocument(doc)}
             onGenerateMessages={(generated) => {
               setCommunicationMessages(prev => ensureAssessments(upsertByKey(prev, generated, m => m.id)));
+            }}
+            onUpdateMessage={(updated) => {
+              setCommunicationMessages(prev => ensureAssessments(upsertByKey(prev, [updated], m => m.id)));
             }}
           />
         )}

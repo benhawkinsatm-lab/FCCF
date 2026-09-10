@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { upsertProfiles } from '../utils/reconcile';
 import { 
   User, 
   Users, 
@@ -16,7 +17,9 @@ import {
   Brain,
   ChevronRight,
   Activity,
-  AlertCircle
+  AlertCircle,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import {
   PartyProfile,
@@ -326,8 +329,8 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
               : 0;
 
             return (
+              <div key={profile.id} className="relative">
               <button
-                key={profile.id}
                 onClick={() => setSelectedPartyId(profile.id)}
                 id={`profile-tab-${profile.id}`}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
@@ -364,6 +367,26 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
                   </span>
                 )}
               </button>
+              <button
+                onClick={() => onUpdateProfiles(upsertProfiles(profiles, [{ ...profile, immutableLock: !profile.immutableLock }]))}
+                className={`absolute -top-1.5 -right-1.5 p-0.5 rounded-full border transition-colors ${
+                  profile.immutableLock
+                    ? 'text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                    : 'text-slate-400 bg-white border-slate-200 hover:text-slate-600 hover:bg-slate-100'
+                }`}
+                title={
+                  profile.immutableLock
+                    ? 'Locked -- AI review refreshes will never overwrite this profile. Click to unlock.'
+                    : 'Lock this profile so AI review refreshes can never overwrite or drop it'
+                }
+              >
+                {profile.immutableLock ? (
+                  <Lock className="w-2.5 h-2.5" />
+                ) : (
+                  <Unlock className="w-2.5 h-2.5" />
+                )}
+              </button>
+              </div>
             );
           })}
         </div>
