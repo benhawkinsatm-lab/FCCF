@@ -545,8 +545,14 @@ export default function App() {
           <DiscrepancyEngine
             discrepancies={discrepancies}
             documents={documents}
+            timeline={timeline}
             onViewDocument={(doc) => setSelectedDocument(doc)}
             onAddDiscrepancy={handleAddDiscrepancy}
+            onGenerateDiscrepancies={(generated) => setDiscrepancies(prev => {
+              const byId = new Map(prev.map(d => [d.id, d]));
+              generated.forEach(d => byId.set(d.id, d));
+              return Array.from(byId.values());
+            })}
             onNavigateToAffidavit={() => setActiveTab('affidavit')}
             onNavigateToTimeline={() => setActiveTab('timeline')}
           />

@@ -9,15 +9,19 @@ import {
   Copy,
   Check,
   Calendar,
-  FileText
+  FileText,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
-import { DiscrepancyItem, DocumentRecord } from '../types';
+import { DiscrepancyItem, DocumentRecord, TimelineEvent } from '../types';
 
 interface DiscrepancyEngineProps {
   discrepancies: DiscrepancyItem[];
   documents: DocumentRecord[];
+  timeline: TimelineEvent[];
   onViewDocument: (doc: DocumentRecord) => void;
   onAddDiscrepancy: (item: DiscrepancyItem) => void;
+  onGenerateDiscrepancies?: (generated: DiscrepancyItem[]) => void;
   onNavigateToAffidavit?: () => void;
   onNavigateToTimeline?: () => void;
 }
@@ -25,8 +29,10 @@ interface DiscrepancyEngineProps {
 export const DiscrepancyEngine: React.FC<DiscrepancyEngineProps> = ({
   discrepancies,
   documents,
+  timeline,
   onViewDocument,
   onAddDiscrepancy,
+  onGenerateDiscrepancies,
   onNavigateToAffidavit,
   onNavigateToTimeline,
 }) => {
@@ -35,6 +41,32 @@ export const DiscrepancyEngine: React.FC<DiscrepancyEngineProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  const handleScanForDiscrepancies = async () => {
+    setIsScanning(true);
+    setScanError(null);
+    try {
+      const res = await fetch('/api/gemini/scan-discrepancies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documents, timeline, existingClaimTexts: discrepancies.map(d => d.claimText) }),
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      const generated: DiscrepancyItem[] = Array.isArray(data.discrepancies) ? data.discrepancies : [];
+      if (generated.length === 0) {
+        setScanError(data.note || 'No conflicting accounts between the two parties could be identified from the case record currently in evidence.');
+      } else if (onGenerateDiscrepancies) {
+        onGenerateDiscrepancies(generated);
+      }
+    } catch (err) {
+      setScanError('AI scan failed. Please try again.');
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   const handleCopyCitation = (item: DiscrepancyItem) => {
     const text = `CONTRADICTION PARTICULAR [${item.id}]:\nRespondent Claim: "${item.claimText}" (${item.claimSource})\nFactual Reality: ${item.conflictingFact}\nPrimary Proof: ${item.evidenceCitation}\nLegal Impact: ${item.legalImpact}`;
@@ -58,6 +90,8 @@ export const DiscrepancyEngine: React.FC<DiscrepancyEngineProps> = ({
           claimText: testClaim,
           claimSource: testSource,
           claimDate: new Date().toISOString().split('T')[0],
+          documents,
+          timeline,
         }),
       });
 
@@ -94,15 +128,33 @@ export const DiscrepancyEngine: React.FC<DiscrepancyEngineProps> = ({
   return (
     <div className="space-y-6 pb-12" id="discrepancy-engine-container">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-slate-900 font-serif flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 text-rose-600" />
-          <span>Contradiction &amp; Discrepancy Engine</span>
-        </h1>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Real-time cross-referencing of Respondent assertions against sworn court orders, school audits, and telecommunication logs.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 font-serif flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-rose-600" />
+            <span>Contradiction &amp; Discrepancy Engine</span>
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5 max-w-2xl">
+            Cross-references each party's account of an incident against the other party's account and against third-party records currently in the case.
+          </p>
+        </div>
+        <button
+          onClick={handleScanForDiscrepancies}
+          disabled={isScanning}
+          className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 text-white text-xs font-bold rounded-lg hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+          id="scan-discrepancies-ai-btn"
+        >
+          {isScanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          <span>{isScanning ? 'Scanning…' : 'Scan for Cross-Party Discrepancies'}</span>
+        </button>
       </div>
+
+      {scanError && (
+        <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{scanError}</span>
+        </div>
+      )}
 
       {/* Interactive Claim Cross-Referencing Tool */}
       <div className="bg-slate-900 text-white rounded-xl p-5 border border-slate-800 shadow-md space-y-4">
@@ -218,6 +270,16 @@ export const DiscrepancyEngine: React.FC<DiscrepancyEngineProps> = ({
           <span className="font-semibold text-slate-700">Verified Case Contradictions ({discrepancies.length})</span>
           <span>Impeachable under WA Evidence Act</span>
         </div>
+
+        {discrepancies.length === 0 && (
+          <div className="flex flex-col items-center justify-center text-center py-16 px-6 bg-white border border-slate-200 rounded-xl">
+            <AlertTriangle className="w-10 h-10 text-slate-300 mb-3" />
+            <h2 className="text-sm font-bold text-slate-900">No Discrepancies Recorded Yet</h2>
+            <p className="text-xs text-slate-500 mt-1 max-w-md">
+              Use &quot;Scan for Cross-Party Discrepancies&quot; above to compare both parties' accounts across the documents and timeline currently in the case, or test a single claim below.
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {discrepancies.map((item) => {

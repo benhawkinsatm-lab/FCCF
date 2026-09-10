@@ -95,23 +95,15 @@ CRITICAL MANDATES:
 `;
 
 // Deterministic legal fallbacks
-const FALLBACK_DISCREPANCY = (claimText: string, claimSource = 'Respondent Claim', claimDate = '') => ({
+const FALLBACK_DISCREPANCY = (claimText: string, _claimSource = 'Respondent Claim', _claimDate = '') => ({
   claimAnalyzed: claimText,
-  contradictionFound: true,
-  conflictingFacts: [
-    `The assertion "${claimText.slice(0, 100)}..." from ${claimSource}${claimDate ? ` on ${claimDate}` : ''} contradicts contemporaneous documentary records.`,
-    'Objective third-party records and communication timestamps demonstrate inconsistencies with the stated timeline.',
-    'Under Evidence Act 1906 (WA) s 79C and FLA s 60CC, this discrepancy must be evaluated against verified written exhibits.'
-  ],
-  evidenceCitations: ['[Documentary Vault Exhibits]'],
-  evidentiaryWeight: 'Third-Party Objective',
-  severity: 'High',
-  legalImpact: 'Directly undermines credibility in sworn testimony under Evidence Act 1906 (WA) and FLA s 60CC. Exposes inconsistencies between unilateral assertions and contemporaneous records.',
-  recommendedCrossExaminationQuestions: [
-    `When you stated that "${claimText.slice(0, 70)}...", what contemporaneous written record did you rely upon?`,
-    'Did you confirm with the primary institutional provider or treating practitioner before making this assertion?',
-    'Are you aware of the written communication logs and attendance records confirming the contrary?'
-  ]
+  contradictionFound: false,
+  conflictingFacts: [],
+  evidenceCitations: [],
+  evidentiaryWeight: 'Unverified Claim',
+  severity: 'Low',
+  legalImpact: 'AI cross-referencing is unavailable right now, so this claim has not been checked against the case record. No conclusion should be drawn until it is.',
+  recommendedCrossExaminationQuestions: []
 });
 
 const FALLBACK_BIFF = (context: string, draftText = '', recipient = 'Other Party') => {
@@ -630,7 +622,7 @@ Generate a JSON object conforming to:
 
   // Discrepancy Engine
   app.post('/api/gemini/discrepancy-check', async (req, res) => {
-    const { claimText, claimSource = 'Respondent Claim', claimDate = '' } = req.body;
+    const { claimText, claimSource = 'Respondent Claim', claimDate = '', documents = [], timeline = [] } = req.body;
     const ai = getAiClient();
 
     if (!ai) {
@@ -638,15 +630,35 @@ Generate a JSON object conforming to:
     }
 
     try {
+      const docSummary = documents.slice(0, 60).map((d: any) =>
+        `[${d.id}] (${d.category}, ${d.date}) ${d.title} -- Excerpt: ${(d.excerpt || '').slice(0, 300)}`
+      ).join('\n');
+      const timelineSummary = timeline.slice(0, 60).map((e: any) =>
+        `[${e.id}] ${e.date}: ${e.title} -- ${e.description || ''}`
+      ).join('\n');
+
       const prompt = `
 ${CASE_CONTEXT_PROMPT}
 
-TASK: CONTRADICTION & PERJURY AUDIT ENGINE
+TASK: CONTRADICTION AUDIT
 Claim Source: ${claimSource} (Date: ${claimDate})
 Claim Text:
 "${claimText}"
 
-Audit against primary documents ([DOC-2023-011] to [DOC-2024-009]).
+Audit this claim ONLY against the documents and timeline events actually in the case record below. Do not reference any document ID that does not appear here.
+
+DOCUMENTS:
+"""
+${docSummary || '(none ingested yet)'}
+"""
+
+TIMELINE:
+"""
+${timelineSummary || '(none recorded yet)'}
+"""
+
+STRICT RULES (zero-hallucination): If nothing in the material above confirms or contradicts the claim, set contradictionFound to false and say so plainly -- do not invent a contradiction to fill the response. Every fact in conflictingFacts must cite a real document/timeline ID from above via evidenceCitations.
+
 Return JSON:
 {
   "claimAnalyzed": "${claimText}",
@@ -1715,6 +1727,96 @@ If there are no school-related documents at all, set "schoolAudit" to null. If t
       });
     } catch (err: any) {
       console.warn('Gemini Expert Brief generation error:', err?.message || err);
+      res.json(emptyResult);
+    }
+  });
+
+  // AI scan for cross-party discrepancies: events/incidents where the
+  // timeline or documents show materially different accounts from Benjamin
+  // and Sue-Anne of the same date/incident (e.g. one account mentions police
+  // attendance and the other omits it entirely).
+  app.post('/api/gemini/scan-discrepancies', async (req, res) => {
+    const { documents = [], timeline = [], existingClaimTexts = [] } = req.body;
+    const ai = getAiClient();
+
+    const emptyResult = {
+      discrepancies: [],
+      note: (documents.length === 0 && timeline.length === 0)
+        ? 'No documents or timeline events are in the case record yet, so no accounts can be compared.'
+        : 'AI generation is unavailable right now, or no conflicting accounts were found between the two parties in the material currently in the case record.'
+    };
+
+    if (!ai || (documents.length === 0 && timeline.length === 0)) {
+      return res.json(emptyResult);
+    }
+
+    try {
+      const docSummary = documents.slice(0, 80).map((d: any) =>
+        `[${d.id}] (${d.category}, ${d.date}) ${d.title} -- Source: ${d.sourceOrigin} -- Excerpt: ${(d.excerpt || '').slice(0, 400)}`
+      ).join('\n');
+      const timelineSummary = timeline.slice(0, 80).map((e: any) =>
+        `[${e.id}] ${e.date} (${e.category}): ${e.title} -- ${e.description || ''} -- Parties: ${(e.partiesInvolved || []).join(', ')}`
+      ).join('\n');
+      const existingList = (existingClaimTexts || []).slice(0, 40).join(' | ');
+
+      const prompt = `${CASE_CONTEXT_PROMPT}
+
+TASK: Find instances where the documents/timeline below show Benjamin Hawkins
+and Sue-Anne Hawkins giving MATERIALLY DIFFERENT accounts of the same
+incident or date -- for example, one party's account mentions the police
+being called and attending while the other party's account of the same
+incident omits that entirely, or the two accounts disagree on what actually
+happened. Only report a discrepancy where you can point to a specific
+document/timeline entry for EACH side's account.
+
+DOCUMENTS:
+"""
+${docSummary || '(none ingested yet)'}
+"""
+
+TIMELINE:
+"""
+${timelineSummary || '(none recorded yet)'}
+"""
+
+ALREADY-FLAGGED CLAIMS (do not repeat): ${existingList || '(none)'}
+
+STRICT RULES (zero-hallucination):
+- Only report a discrepancy where the case record above actually contains both a claim (from one party) and a conflicting fact (from the other party's account or a third-party record). Do not invent either side.
+- claimText must be a faithful excerpt/paraphrase of what one party's account actually says, with claimSource citing its real document/timeline ID.
+- conflictingFact must be a faithful excerpt/paraphrase of the other account, with evidenceCitation citing its real document/timeline ID.
+- Do not fabricate dates, incidents, or details not present in the material above.
+- Return at most 6 discrepancies, most significant first.
+
+Return strict JSON:
+{ "discrepancies": [ { "id": "DISC-AI-<n>", "claimText": "string", "claimSource": "string (party name + real doc/event ID)", "claimDate": "YYYY-MM-DD", "conflictingFact": "string", "evidenceDocId": "<real doc or event ID>", "evidenceCitation": "string", "evidentiaryWeight": "Sworn/Official" | "Third-Party Objective" | "Unverified Claim", "severity": "High" | "Medium" | "Low", "legalImpact": "string" } ] }
+`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' }
+      });
+
+      const parsed = JSON.parse(response.text?.trim() || '{}');
+      const discrepancies = Array.isArray(parsed.discrepancies) ? parsed.discrepancies.filter((d: any) =>
+        d && d.id && d.claimText && d.conflictingFact
+      ).map((d: any) => ({
+        id: d.id,
+        claimText: d.claimText,
+        claimSource: d.claimSource || 'Case record',
+        claimDate: d.claimDate || '',
+        conflictingFact: d.conflictingFact,
+        evidenceDocId: d.evidenceDocId || '',
+        evidenceCitation: d.evidenceCitation || '',
+        evidentiaryWeight: ['Sworn/Official', 'Third-Party Objective', 'Unverified Claim'].includes(d.evidentiaryWeight) ? d.evidentiaryWeight : 'Unverified Claim',
+        severity: ['High', 'Medium', 'Low'].includes(d.severity) ? d.severity : 'Medium',
+        legalImpact: d.legalImpact || '',
+      })) : [];
+
+      res.json({ discrepancies });
+    } catch (err: any) {
+      console.warn('Gemini Discrepancy Scan error:', err?.message || err);
       res.json(emptyResult);
     }
   });
