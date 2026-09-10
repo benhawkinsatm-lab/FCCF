@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { 
   INITIAL_DOCUMENTS, 
   INITIAL_TIMELINE_EVENTS, 
@@ -286,6 +286,65 @@ export default function App() {
     setLastSyncTime(new Date().toISOString());
   };
 
+  // Always-current mirror of the full case-data store, kept in sync on
+  // every render (not debounced) so an immediate save can read the latest
+  // committed state without waiting on the 1200ms autosave timer below.
+  const latestStateRef = useRef<CaseDataStore>(currentStoreData);
+  useEffect(() => {
+    latestStateRef.current = currentStoreData;
+  }, [currentStoreData]);
+
+  // Snapshot of the store taken the moment a bulk import starts, used as
+  // the base onto which each file's incremental progress is merged (see
+  // handleBulkFileCommitted below). Captured once per run rather than
+  // re-read from latestStateRef on every file, so a run's own earlier
+  // flushes are never double-counted against it.
+  const bulkImportBaselineRef = useRef<CaseDataStore | null>(null);
+  const handleOpenBulkImport = useCallback(() => {
+    bulkImportBaselineRef.current = latestStateRef.current;
+    setIsBulkImportOpen(true);
+  }, []);
+
+  // Persists one bulk-import file's progress to the server immediately,
+  // rather than waiting for the debounced autosave effect to notice the
+  // state change and fire ~1.2s after the user goes quiet. A bulk import
+  // can add dozens of documents back to back with no quiet gap between
+  // them, so without this, a refresh, crashed tab, or a second open tab
+  // mid-run can lose everything the run had added so far. This is purely
+  // an additional, more frequent save -- it does not replace the regular
+  // React state updates the modal also makes via onDocumentAdded /
+  // onResponseRequirementAdded / onTimelineEventAdded, which still drive
+  // the UI and the debounced autosave as before.
+  const handleBulkFileCommitted = useCallback(async (progress: {
+    documents: DocumentRecord[];
+    responseRequirements?: ResponseRequirement[];
+    timelineEvents?: TimelineEvent[];
+  }) => {
+    const base = bulkImportBaselineRef.current || latestStateRef.current;
+    const payload: CaseDataStore = {
+      ...base,
+      documents: progress.documents,
+      responseRequirements: progress.responseRequirements
+        ? [...progress.responseRequirements, ...base.responseRequirements]
+        : base.responseRequirements,
+      timeline: progress.timelineEvents
+        ? [...progress.timelineEvents, ...base.timeline]
+        : base.timeline,
+    };
+    try {
+      const res = await saveSelfHostedState(payload, false);
+      latestStateRef.current = payload;
+      setLastSyncTime(res.lastUpdated);
+      setSyncStatus('synced');
+    } catch (err) {
+      // Non-fatal: the debounced autosave effect will retry shortly from
+      // whatever the React state ends up holding. This immediate flush
+      // exists only to shrink the window in which an in-progress bulk
+      // import's work is unsaved -- it is not the only save path.
+      console.warn('Bulk-import incremental save failed (will retry via debounced autosave):', err);
+    }
+  }, []);
+
   // Handlers
   const handleUpdateDocuments = (updatedDocs: DocumentRecord[]) => {
     setDocuments(updatedDocs);
@@ -496,7 +555,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         openIngestion={() => setIsIngestionOpen(true)}
-        openBulkImport={() => setIsBulkImportOpen(true)}
+        openBulkImport={handleOpenBulkImport}
         openStorageModal={() => setIsStorageModalOpen(true)}
         syncStatus={syncStatus}
         discrepancyCount={discrepancies.length}
@@ -782,6 +841,7 @@ export default function App() {
             onDocumentAdded={handleDocumentAdded}
             onResponseRequirementAdded={handleAddResponseRequirement}
             onTimelineEventAdded={handleAddTimelineEvent}
+            onFileCommitted={handleBulkFileCommitted}
             existingDocuments={documents}
           />
         )}

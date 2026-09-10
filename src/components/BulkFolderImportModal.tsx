@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { X, FolderSync, Loader2, CheckCircle2, AlertCircle, FileText, RefreshCw } from 'lucide-react';
 import { DocumentRecord, ResponseRequirement, TimelineEvent } from '../types';
 import { ingestFileEndToEnd } from '../utils/bulkIngestionPipeline';
@@ -23,6 +23,17 @@ interface BulkFolderImportModalProps {
   onDocumentAdded: (doc: DocumentRecord) => void;
   onResponseRequirementAdded?: (req: ResponseRequirement) => void;
   onTimelineEventAdded?: (event: TimelineEvent) => void;
+  // Called after each individual file finishes processing, with the
+  // full running set of documents/requirements/events this run has
+  // added so far (merged with what existed before the run started).
+  // Lets the caller persist progress to the server immediately rather
+  // than waiting on a debounced autosave, so a refresh or crashed tab
+  // mid-run loses at most the file in flight, not the whole run.
+  onFileCommitted?: (progress: {
+    documents: DocumentRecord[];
+    responseRequirements?: ResponseRequirement[];
+    timelineEvents?: TimelineEvent[];
+  }) => Promise<void> | void;
   existingDocuments?: DocumentRecord[];
 }
 
@@ -40,6 +51,7 @@ export const BulkFolderImportModal: React.FC<BulkFolderImportModalProps> = ({
   onDocumentAdded,
   onResponseRequirementAdded,
   onTimelineEventAdded,
+  onFileCommitted,
   existingDocuments = [],
 }) => {
   const [files, setFiles] = useState<LocalUploadFile[]>([]);
@@ -48,6 +60,13 @@ export const BulkFolderImportModal: React.FC<BulkFolderImportModalProps> = ({
   const [progress, setProgress] = useState<FileProgress[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [summary, setSummary] = useState<{ documents: number; responseRequirements: number; timelineEvents: number } | null>(null);
+
+  // Running accumulation of what THIS run has added so far, used only to
+  // build the payload for onFileCommitted after each file -- not for
+  // rendering (progress/summary above still own that).
+  const addedDocsRef = useRef<DocumentRecord[]>([]);
+  const addedReqsRef = useRef<ResponseRequirement[]>([]);
+  const addedEventsRef = useRef<TimelineEvent[]>([]);
 
   const loadFileList = async () => {
     setIsListing(true);
@@ -81,6 +100,9 @@ export const BulkFolderImportModal: React.FC<BulkFolderImportModalProps> = ({
     setIsRunning(true);
     setSummary(null);
     setProgress(files.map(f => ({ name: f.name, status: 'pending' as FileStatus })));
+    addedDocsRef.current = [];
+    addedReqsRef.current = [];
+    addedEventsRef.current = [];
 
     let docCount = 0;
     let reqCount = 0;
@@ -123,13 +145,31 @@ export const BulkFolderImportModal: React.FC<BulkFolderImportModalProps> = ({
 
         onDocumentAdded(document);
         docCount += 1;
+        addedDocsRef.current = [document, ...addedDocsRef.current];
         if (responseRequirement && onResponseRequirementAdded) {
           onResponseRequirementAdded(responseRequirement);
           reqCount += 1;
+          addedReqsRef.current = [responseRequirement, ...addedReqsRef.current];
         }
         if (timelineEvent && onTimelineEventAdded) {
           onTimelineEventAdded(timelineEvent);
           evtCount += 1;
+          addedEventsRef.current = [timelineEvent, ...addedEventsRef.current];
+        }
+
+        // Persist this file's progress right away rather than relying on
+        // the caller's debounced autosave to eventually notice the state
+        // change above -- see the onFileCommitted prop doc for why.
+        if (onFileCommitted) {
+          try {
+            await onFileCommitted({
+              documents: [...addedDocsRef.current, ...existingDocuments],
+              responseRequirements: addedReqsRef.current.length ? addedReqsRef.current : undefined,
+              timelineEvents: addedEventsRef.current.length ? addedEventsRef.current : undefined,
+            });
+          } catch (flushErr) {
+            console.warn('Incremental bulk-import save failed for this file, continuing:', flushErr);
+          }
         }
 
         // File is fully ingested (OCR'd, AI-processed, and added to the case
