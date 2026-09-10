@@ -85,11 +85,32 @@ export const BulkFolderImportModal: React.FC<BulkFolderImportModalProps> = ({
     let docCount = 0;
     let reqCount = 0;
     let evtCount = 0;
-    let seq = (existingDocuments?.length || 0) + 1;
+    // Seed the sequence from the highest numeric DOC-YYYY-NNN suffix already
+    // present (not just existingDocuments.length): a prior run that added
+    // documents but whose progress was lost before it could autosave (a
+    // refresh mid-run, a crashed tab) leaves existingDocuments.length lower
+    // than the ids that were actually handed out -- reusing that lower
+    // count as the next id produces a collision, and a collision means the
+    // new file's stored original silently overwrites the old one, so a
+    // later "Open Original File" click can download the wrong document.
+    let seq = (() => {
+      const maxExisting = (existingDocuments || []).reduce((max, d) => {
+        const m = /^DOC-\d{4}-(\d+)$/.exec(d.id || '');
+        if (!m) return max;
+        const n = parseInt(m[1], 10);
+        return Number.isFinite(n) && n > max ? n : max;
+      }, 0);
+      return Math.max(maxExisting, existingDocuments?.length || 0) + 1;
+    })();
 
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       setProgress(prev => prev.map((p, idx) => idx === i ? { ...p, status: 'processing' } : p));
+      // Claim this file's sequence number up front, before any await, so a
+      // failure partway through this iteration can never cause the next
+      // file to be assigned the same (now-collided) id.
+      const currentSeq = seq;
+      seq += 1;
       try {
         const fileRes = await fetch(`/upload/${encodeUploadPath(f.name)}`);
         if (!fileRes.ok) throw new Error(`Could not fetch ${f.name} (${fileRes.status})`);
@@ -98,8 +119,7 @@ export const BulkFolderImportModal: React.FC<BulkFolderImportModalProps> = ({
         const baseName = f.name.split('/').pop() || f.name;
         const file = new File([blob], baseName, { type: mimeType });
 
-        const { document, responseRequirement, timelineEvent } = await ingestFileEndToEnd(file, seq);
-        seq += 1;
+        const { document, responseRequirement, timelineEvent } = await ingestFileEndToEnd(file, currentSeq);
 
         onDocumentAdded(document);
         docCount += 1;

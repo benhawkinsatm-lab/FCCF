@@ -1521,7 +1521,7 @@ Return strict JSON matching these fields.
   // both the listing and the files themselves current without a rebuild --
   // this is what lets a bind-mounted host folder work in production too.
   const UPLOAD_FOLDER = path.join(process.cwd(), 'public', 'upload');
-  const SKIP_UPLOAD_FILES = new Set(['.gitkeep', '.DS_Store', 'Thumbs.db']);
+  const SKIP_UPLOAD_FILES = new Set(['.gitkeep', '.DS_Store', 'Thumbs.db', 'desktop.ini', 'Desktop.ini']);
   app.use('/upload', express.static(UPLOAD_FOLDER));
 
   // Recursively walks UPLOAD_FOLDER (and any subfolders inside it) so a
@@ -1662,10 +1662,21 @@ Return strict JSON matching these fields.
         return res.status(404).send('Original file not found.');
       }
       const entries = fs.readdirSync(ORIGINALS_DIR);
-      const match = entries.find(name => name === docId || name.startsWith(`${docId}.`));
-      if (!match) {
+      // A stale docId collision (from a bulk-import retry before the
+      // sequence-number fix) can leave more than one stored file matching
+      // this id. That should not happen for new uploads, but as a defensive
+      // tiebreaker for any such leftovers, prefer whichever candidate was
+      // written most recently rather than an arbitrary directory-listing
+      // order, since that is the more likely intended document.
+      const candidates = entries.filter(name => name === docId || name.startsWith(`${docId}.`));
+      if (candidates.length === 0) {
         return res.status(404).send('Original file not found.');
       }
+      const match = candidates.length === 1
+        ? candidates[0]
+        : candidates
+            .map(name => ({ name, mtime: fs.statSync(path.join(ORIGINALS_DIR, name)).mtimeMs }))
+            .sort((a, b) => b.mtime - a.mtime)[0].name;
       const resolvedTarget = path.resolve(path.join(ORIGINALS_DIR, match));
       const resolvedDir = path.resolve(ORIGINALS_DIR);
       if (!resolvedTarget.startsWith(resolvedDir + path.sep)) {

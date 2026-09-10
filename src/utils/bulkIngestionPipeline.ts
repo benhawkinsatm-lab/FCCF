@@ -224,6 +224,7 @@ export async function ingestFileEndToEnd(file: File, docSequenceNumber: number):
   document.originalFileRef = await storeOriginalFile(docId, file);
 
   let responseRequirement: ResponseRequirement | null = null;
+  try {
   if (parsedMetadata.requiresResponse) {
     responseRequirement = {
       id: `REQ-${Date.now().toString().slice(-4)}-${docSequenceNumber}`,
@@ -248,8 +249,12 @@ export async function ingestFileEndToEnd(file: File, docSequenceNumber: number):
       childrenConcerned: parsedMetadata.childrenMentioned,
     };
   }
+  } catch (err) {
+    console.warn("Bulk ingestion: response-requirement derivation failed for this file, continuing without it:", err);
+  }
 
   let timelineEvent: TimelineEvent | null = null;
+  try {
   if (parsedMetadata.createTimelineEvent) {
     const isBreach = Boolean(parsedMetadata.hasBreach);
     const attributedChildren: ChildName[] =
@@ -296,6 +301,9 @@ export async function ingestFileEndToEnd(file: File, docSequenceNumber: number):
           }));
 
     timelineEvent = baseEvent;
+  }
+  } catch (err) {
+    console.warn("Bulk ingestion: timeline-event derivation failed for this file, continuing without it:", err);
   }
 
   return { document, responseRequirement, timelineEvent };
