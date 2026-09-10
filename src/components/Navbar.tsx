@@ -18,7 +18,8 @@ import {
   Cloud,
   ShieldAlert,
   FileCheck,
-  Database
+  Database,
+  FolderSync as FolderSyncIcon
 } from 'lucide-react';
 import { CASE_METADATA } from '../data/caseData';
 
@@ -47,6 +48,7 @@ interface NavbarProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   openIngestion: () => void;
+  openBulkImport?: () => void;
   openStorageModal: () => void;
   syncStatus?: 'synced' | 'syncing' | 'error' | 'offline';
   discrepancyCount: number;
@@ -61,6 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   openIngestion,
+  openBulkImport,
   openStorageModal,
   syncStatus = 'synced',
   discrepancyCount,
@@ -142,6 +145,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <UploadCloud className="w-3.5 h-3.5" />
             <span>Ingest Document / OCR</span>
           </button>
+
+          {openBulkImport && (
+            <button
+              onClick={openBulkImport}
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 rounded text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+              id="top-bulk-import-btn"
+              title="Bulk-import every file in the local public/upload folder through OCR + AI ingestion"
+            >
+              <FolderSyncIcon className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="hidden sm:inline">Bulk Import Folder</span>
+            </button>
+          )}
         </div>
       </div>
 

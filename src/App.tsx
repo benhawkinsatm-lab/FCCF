@@ -52,6 +52,7 @@ const DocumentLibrary = lazy(() => import('./components/DocumentLibrary').then(m
 // Lazy-loaded modal dialogs
 const DocumentDetailModal = lazy(() => import('./components/DocumentDetailModal').then(m => ({ default: m.DocumentDetailModal })));
 const DocumentIngestionModal = lazy(() => import('./components/DocumentIngestionModal').then(m => ({ default: m.DocumentIngestionModal })));
+const BulkFolderImportModal = lazy(() => import('./components/BulkFolderImportModal').then(m => ({ default: m.BulkFolderImportModal })));
 const SelfHostedStorageModal = lazy(() => import('./components/SelfHostedStorageModal').then(m => ({ default: m.SelfHostedStorageModal })));
 const DeleteDocumentWarningModal = lazy(() => import('./components/document-library/DeleteDocumentWarningModal').then(m => ({ default: m.DeleteDocumentWarningModal })));
 import { ensureAssessments } from './utils/communicationProductivity';
@@ -113,6 +114,7 @@ export default function App() {
   // Modal States
   const [selectedDocument, setSelectedDocument] = useState<DocumentRecord | null>(null);
   const [isIngestionOpen, setIsIngestionOpen] = useState<boolean>(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
   const [chatInitialQuery, setChatInitialQuery] = useState<string>('');
   const [biffInitialContext, setBiffInitialContext] = useState<string>('');
   const [binderPreselectedIds, setBinderPreselectedIds] = useState<string[] | undefined>(undefined);
@@ -448,6 +450,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         openIngestion={() => setIsIngestionOpen(true)}
+        openBulkImport={() => setIsBulkImportOpen(true)}
         openStorageModal={() => setIsStorageModalOpen(true)}
         syncStatus={syncStatus}
         discrepancyCount={discrepancies.length}
@@ -705,6 +708,17 @@ export default function App() {
           <DocumentIngestionModal
             isOpen={isIngestionOpen}
             onClose={() => setIsIngestionOpen(false)}
+            onDocumentAdded={handleDocumentAdded}
+            onResponseRequirementAdded={handleAddResponseRequirement}
+            onTimelineEventAdded={handleAddTimelineEvent}
+            existingDocuments={documents}
+          />
+        )}
+
+        {isBulkImportOpen && (
+          <BulkFolderImportModal
+            isOpen={isBulkImportOpen}
+            onClose={() => setIsBulkImportOpen(false)}
             onDocumentAdded={handleDocumentAdded}
             onResponseRequirementAdded={handleAddResponseRequirement}
             onTimelineEventAdded={handleAddTimelineEvent}

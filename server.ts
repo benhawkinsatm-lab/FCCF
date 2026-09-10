@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import {
@@ -1292,6 +1293,34 @@ Return strict JSON matching these fields.
 
   app.post('/api/gemini/ocr-parse', handleOcr);
   app.post('/api/gemini/ocr-extract', handleOcr);
+
+  // Bulk local-folder import: list files sitting in public/upload so the
+  // client can pull each one through the same OCR + AI ingestion pipeline
+  // used for a single manual upload. Files themselves are served as static
+  // assets from /upload/<name> (Vite's publicDir in dev, copied into dist
+  // on build) -- this endpoint only provides the directory listing, which
+  // static serving does not expose on its own.
+  const UPLOAD_FOLDER = path.join(process.cwd(), 'public', 'upload');
+  const SKIP_UPLOAD_FILES = new Set(['.gitkeep', '.DS_Store', 'Thumbs.db']);
+
+  app.get('/api/local-upload/list', (req, res) => {
+    try {
+      if (!fs.existsSync(UPLOAD_FOLDER)) {
+        return res.json({ files: [] });
+      }
+      const entries = fs.readdirSync(UPLOAD_FOLDER, { withFileTypes: true });
+      const files = entries
+        .filter(e => e.isFile() && !SKIP_UPLOAD_FILES.has(e.name) && !e.name.startsWith('.'))
+        .map(e => {
+          const stat = fs.statSync(path.join(UPLOAD_FOLDER, e.name));
+          return { name: e.name, size: stat.size, modifiedAt: stat.mtime.toISOString() };
+        });
+      res.json({ files });
+    } catch (err: any) {
+      console.warn('Failed to list local upload folder:', err?.message || err);
+      res.json({ files: [], error: 'Could not read the local upload folder.' });
+    }
+  });
 
   // AI Knowledge Base Response Requirement Review Engine
   app.post('/api/gemini/review-responses', async (req: express.Request, res: express.Response) => {
