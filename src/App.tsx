@@ -10,7 +10,8 @@ import {
   INITIAL_PARTY_PROFILES,
   INITIAL_ISSUES_CONCERNS,
   INITIAL_COURT_CRITERIA,
-  INITIAL_PROPOSED_ORDERS
+  INITIAL_PROPOSED_ORDERS,
+  PARENT_RESOLUTIONS
 } from './data/caseData';
 import { 
   DocumentRecord, 
@@ -23,7 +24,8 @@ import {
   PartyProfile,
   IssueConcern,
   CourtCriterion,
-  ProposedParentingOrder
+  ProposedParentingOrder,
+  ParentResolutionRequest
 } from './types';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { DashboardOverview } from './components/DashboardOverview';
@@ -46,6 +48,7 @@ const IntelligentChatbot = lazy(() => import('./components/IntelligentChatbot').
 const GoogleDriveVault = lazy(() => import('./components/GoogleDriveVault').then(m => ({ default: m.GoogleDriveVault })));
 const KnowledgeGapAnalyzer = lazy(() => import('./components/KnowledgeGapAnalyzer').then(m => ({ default: m.KnowledgeGapAnalyzer })));
 const CommunicationAnalytics = lazy(() => import('./components/CommunicationAnalytics').then(m => ({ default: m.CommunicationAnalytics })));
+const ParentResolutions = lazy(() => import('./components/ParentResolutions').then(m => ({ default: m.ParentResolutions })));
 const EvidenceBinder = lazy(() => import('./components/EvidenceBinder').then(m => ({ default: m.EvidenceBinder })));
 const DocumentLibrary = lazy(() => import('./components/DocumentLibrary').then(m => ({ default: m.DocumentLibrary })));
 
@@ -104,6 +107,7 @@ export default function App() {
   const [issuesConcerns, setIssuesConcerns] = useState<IssueConcern[]>(INITIAL_ISSUES_CONCERNS);
   const [courtCriteria, setCourtCriteria] = useState<CourtCriterion[]>(INITIAL_COURT_CRITERIA);
   const [proposedOrders, setProposedOrders] = useState<ProposedParentingOrder[]>(INITIAL_PROPOSED_ORDERS);
+  const [parentResolutions, setParentResolutions] = useState<ParentResolutionRequest[]>(PARENT_RESOLUTIONS);
 
   // Self-Hosted Storage Sync States
   const [isStorageModalOpen, setIsStorageModalOpen] = useState<boolean>(false);
@@ -149,6 +153,7 @@ export default function App() {
           if (Array.isArray(d.issuesConcerns)) setIssuesConcerns(d.issuesConcerns);
           if (Array.isArray(d.courtCriteria)) setCourtCriteria(d.courtCriteria);
           if (Array.isArray(d.proposedOrders)) setProposedOrders(d.proposedOrders);
+          if (Array.isArray(d.parentResolutions)) setParentResolutions(d.parentResolutions);
           setLastSyncTime(remote.lastUpdated);
           setSyncStatus('synced');
         } else {
@@ -165,6 +170,7 @@ export default function App() {
             issuesConcerns: INITIAL_ISSUES_CONCERNS,
             courtCriteria: INITIAL_COURT_CRITERIA,
             proposedOrders: INITIAL_PROPOSED_ORDERS,
+            parentResolutions: PARENT_RESOLUTIONS,
           };
           const res = await saveSelfHostedState(initialPayload, false);
           if (isMounted) {
@@ -205,6 +211,7 @@ export default function App() {
           issuesConcerns,
           courtCriteria,
           proposedOrders,
+          parentResolutions,
         };
         const res = await saveSelfHostedState(payload, false);
         setLastSyncTime(res.lastUpdated);
@@ -229,6 +236,7 @@ export default function App() {
     issuesConcerns,
     courtCriteria,
     proposedOrders,
+    parentResolutions,
   ]);
 
   const currentStoreData = useMemo<CaseDataStore>(() => ({
@@ -243,6 +251,7 @@ export default function App() {
     issuesConcerns,
     courtCriteria,
     proposedOrders,
+    parentResolutions,
   }), [
     documents,
     timeline,
@@ -255,6 +264,7 @@ export default function App() {
     issuesConcerns,
     courtCriteria,
     proposedOrders,
+    parentResolutions,
   ]);
 
   const handleStoreRestored = (newStore: CaseDataStore) => {
@@ -269,6 +279,7 @@ export default function App() {
     if (Array.isArray(newStore.issuesConcerns)) setIssuesConcerns(newStore.issuesConcerns);
     if (Array.isArray(newStore.courtCriteria)) setCourtCriteria(newStore.courtCriteria);
     if (Array.isArray(newStore.proposedOrders)) setProposedOrders(newStore.proposedOrders);
+    if (Array.isArray(newStore.parentResolutions)) setParentResolutions(newStore.parentResolutions);
     setSyncStatus('synced');
     setLastSyncTime(new Date().toISOString());
   };
@@ -442,6 +453,27 @@ export default function App() {
   const waitingResponseCount = responseRequirements.filter(r => r.status === 'waiting').length;
   const tickedOrdersCount = proposedOrders.filter(o => o.selectedForAiReview).length;
   const issuesCount = issuesConcerns.length;
+  const openParentResolutionsCount = parentResolutions.filter(r => r.responseStatus === 'Open' || r.responseStatus === 'Unresponded').length;
+
+  const handleAddParentResolution = (item: ParentResolutionRequest) => {
+    setParentResolutions(prev => [item, ...prev]);
+  };
+
+  const handleUpdateParentResolution = (item: ParentResolutionRequest) => {
+    setParentResolutions(prev => prev.map(r => (r.id === item.id ? item : r)));
+  };
+
+  const handleDeleteParentResolution = (id: string) => {
+    setParentResolutions(prev => prev.filter(r => r.id !== id));
+  };
+
+  const handleGenerateParentResolutions = (generated: ParentResolutionRequest[]) => {
+    setParentResolutions(prev => {
+      const byId = new Map(prev.map(r => [r.id, r]));
+      generated.forEach(r => byId.set(r.id, r));
+      return Array.from(byId.values());
+    });
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-amber-200 selection:text-slate-900">
@@ -459,6 +491,7 @@ export default function App() {
         waitingResponseCount={waitingResponseCount}
         issuesCount={issuesCount}
         tickedOrdersCount={tickedOrdersCount}
+        openParentResolutionsCount={openParentResolutionsCount}
       />
 
       {/* Main Content Area */}
@@ -654,6 +687,18 @@ export default function App() {
                 return ensureAssessments(Array.from(byId.values()));
               });
             }}
+          />
+        )}
+
+        {activeTab === 'parent-resolutions' && (
+          <ParentResolutions
+            resolutions={parentResolutions}
+            documents={documents}
+            communicationMessages={communicationMessages}
+            onAdd={handleAddParentResolution}
+            onUpdate={handleUpdateParentResolution}
+            onDelete={handleDeleteParentResolution}
+            onGenerate={handleGenerateParentResolutions}
           />
         )}
 

@@ -12,7 +12,8 @@ import {
   ProposedParentingOrder,
   CaseSettings,
   ChildName,
-  ChildProfile
+  ChildProfile,
+  ParentResolutionRequest
 } from '../types';
 
 export const CASE_METADATA: CaseSettings = {
@@ -78,6 +79,10 @@ export const KNOWLEDGE_GAPS: KnowledgeGap[] = [];
 
 // All mock communication logs removed
 export const COMMUNICATION_LOGS: CommunicationMessage[] = [];
+
+// Empty by design -- populated only via AI extraction from real case
+// material or manual entry (zero-hallucination pattern).
+export const PARENT_RESOLUTIONS: ParentResolutionRequest[] = [];
 
 // Real statutory form templates preserved
 export const FCWA_TEMPLATES = [

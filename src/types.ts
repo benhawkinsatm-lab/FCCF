@@ -246,6 +246,45 @@ export interface CommunicationMessage {
   requestAddressed?: string;
 }
 
+/**
+ * A single inter-party request for information or confirmation between the
+ * two parents (e.g. "Did Emma see the paediatrician about her allergy?" or
+ * "Please confirm collection time for Friday") and how it was resolved.
+ * Populated by AI extraction from ingested documents/communications, or
+ * added manually -- this array is empty by default (zero-hallucination
+ * pattern: no synthetic rows until real case material supports them).
+ */
+export interface ParentResolutionRequest {
+  id: string;
+
+  /** ISO date (YYYY-MM-DD) the request was made. */
+  dateOfRequest: string;
+
+  requestedBy: 'Benjamin Hawkins' | 'Sue-Anne Hawkins' | 'Third Party';
+  requestedTo: 'Benjamin Hawkins' | 'Sue-Anne Hawkins' | 'Third Party';
+
+  /** What was actually asked for or requested confirmation of. */
+  informationRequested: string;
+
+  category: 'Medical' | 'School' | 'Care Arrangements' | 'Financial' | 'Legal' | 'Extracurricular' | 'Other';
+
+  responseStatus: 'Open' | 'In Progress' | 'Closed' | 'Unresponded';
+
+  /** What information/confirmation was actually provided in response, if any. */
+  informationProvided: string;
+
+  toneOfParties: 'Hostile' | 'Neutral' | 'Cooperative';
+
+  productivity: 'Productive' | 'Partially Productive' | 'Non-Productive' | 'Unassessed';
+
+  /** Document IDs this request/response was extracted from, for citation/verification. */
+  originDocIds?: string[];
+
+  detectedBy?: 'AI Review' | 'Manual';
+
+  notes?: string;
+}
+
 export interface BiffAdviceResult {
   tacticalConsiderations: string[];
   emotionalTrapsRemoved: string[];

@@ -2049,6 +2049,106 @@ Return strict JSON:
     }
   });
 
+  // Parent Resolutions: extract inter-parent requests for information or
+  // confirmation (medical, school, care arrangements, etc.) and how each was
+  // resolved, from actual ingested documents and communication messages.
+  app.post('/api/gemini/generate-parent-resolutions', async (req, res) => {
+    const { documents = [], communicationMessages = [] } = req.body;
+    const ai = getAiClient();
+
+    const candidateDocs = (documents || []).filter((d: any) =>
+      d.category === 'Direct Communication' || d.fileType === 'sms' || d.fileType === 'email' || d.fileType === 'court_order' || d.fileType === 'medical_report' || d.fileType === 'school_record'
+    );
+
+    const emptyResult = {
+      requests: [],
+      note: (candidateDocs.length === 0 && communicationMessages.length === 0)
+        ? 'No documents or communication logs currently in the case record could evidence an inter-parent request.'
+        : 'AI generation is unavailable right now. No parent resolution requests could be extracted.'
+    };
+
+    if (!ai || (candidateDocs.length === 0 && communicationMessages.length === 0)) {
+      return res.json(emptyResult);
+    }
+
+    try {
+      const docSummary = candidateDocs.slice(0, 60).map((d: any) =>
+        `[DOC:${d.id}] date=${d.date} fileType=${d.fileType} -- Excerpt: ${(d.excerpt || d.fullText || '').slice(0, 600)}`
+      ).join('\n');
+
+      const commsSummary = (communicationMessages || []).slice(0, 80).map((m: any) =>
+        `[MSG:${m.id}] ${m.timestamp} ${m.sender} -> ${m.recipient} (tone=${m.tone}) docRefId=${m.docRefId}: ${(m.content || '').slice(0, 400)}`
+      ).join('\n');
+
+      const prompt = `${CASE_CONTEXT_PROMPT}
+
+TASK: Identify every distinct instance in the material below where one parent
+(Benjamin Hawkins or Sue-Anne Hawkins) -- or a third party such as a school or
+medical provider -- requested INFORMATION or CONFIRMATION of something from
+the other parent (e.g. asking about a medical appointment, requesting
+confirmation of a pickup time, asking for a school report, requesting
+confirmation of an arrangement). For each such request, determine whether and
+how it was responded to, using ONLY what the material actually shows.
+
+DOCUMENTS:
+${docSummary}
+
+COMMUNICATION LOG:
+${commsSummary}
+
+STRICT RULES (zero-hallucination):
+- Only create an entry where the material clearly shows a request being made. Do not invent a request that is not evidenced.
+- "informationProvided" must be a faithful summary of what was actually provided in response, drawn from the material. If nothing was provided/no response is evidenced, leave it as an empty string and set responseStatus to "Unresponded" or "Open" as appropriate.
+- "responseStatus" must be one of: "Open" | "In Progress" | "Closed" | "Unresponded" -- judged strictly from what the material shows (e.g. a clear resolution = Closed; a request with no reply anywhere in the material = Unresponded).
+- "toneOfParties" must be classified ONLY from the actual language used: "Hostile" | "Neutral" | "Cooperative".
+- "productivity" must be one of "Productive" | "Partially Productive" | "Non-Productive" | "Unassessed" -- use "Unassessed" whenever the material does not give enough to judge substance.
+- "category" must be one of: "Medical" | "School" | "Care Arrangements" | "Financial" | "Legal" | "Extracurricular" | "Other".
+- "requestedBy" and "requestedTo" must each be exactly "Benjamin Hawkins", "Sue-Anne Hawkins", or "Third Party".
+- "originDocIds" must list only the real [DOC:...]/[MSG:...] ids (with the DOC:/MSG: prefix stripped) that this entry was actually drawn from -- never invent an id.
+- If nothing in the material evidences an inter-parent request, return an empty requests array.
+
+Return strict JSON:
+{ "requests": [ { "id": "PR-<n>", "dateOfRequest": "YYYY-MM-DD", "requestedBy": "Benjamin Hawkins" | "Sue-Anne Hawkins" | "Third Party", "requestedTo": "Benjamin Hawkins" | "Sue-Anne Hawkins" | "Third Party", "informationRequested": "string", "category": "Medical" | "School" | "Care Arrangements" | "Financial" | "Legal" | "Extracurricular" | "Other", "responseStatus": "Open" | "In Progress" | "Closed" | "Unresponded", "informationProvided": "string", "toneOfParties": "Hostile" | "Neutral" | "Cooperative", "productivity": "Productive" | "Partially Productive" | "Non-Productive" | "Unassessed", "originDocIds": ["string"] } ] }
+`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' }
+      });
+
+      const parsed = JSON.parse(response.text?.trim() || '{}');
+      const validCategories = new Set(['Medical', 'School', 'Care Arrangements', 'Financial', 'Legal', 'Extracurricular', 'Other']);
+      const validStatuses = new Set(['Open', 'In Progress', 'Closed', 'Unresponded']);
+      const validTones = new Set(['Hostile', 'Neutral', 'Cooperative']);
+      const validProductivity = new Set(['Productive', 'Partially Productive', 'Non-Productive', 'Unassessed']);
+      const validParties = new Set(['Benjamin Hawkins', 'Sue-Anne Hawkins', 'Third Party']);
+
+      const requests = Array.isArray(parsed.requests) ? parsed.requests.filter((r: any) =>
+        r && r.id && r.informationRequested && validParties.has(r.requestedBy) && validParties.has(r.requestedTo)
+      ).map((r: any) => ({
+        id: r.id,
+        dateOfRequest: r.dateOfRequest || '',
+        requestedBy: r.requestedBy,
+        requestedTo: r.requestedTo,
+        informationRequested: r.informationRequested,
+        category: validCategories.has(r.category) ? r.category : 'Other',
+        responseStatus: validStatuses.has(r.responseStatus) ? r.responseStatus : 'Unresponded',
+        informationProvided: r.informationProvided || '',
+        toneOfParties: validTones.has(r.toneOfParties) ? r.toneOfParties : 'Neutral',
+        productivity: validProductivity.has(r.productivity) ? r.productivity : 'Unassessed',
+        originDocIds: Array.isArray(r.originDocIds) ? r.originDocIds : [],
+        detectedBy: 'AI Review',
+      })) : [];
+
+      res.json({ requests });
+    } catch (err: any) {
+      console.warn('Gemini Parent Resolutions generation error:', err?.message || err);
+      res.json(emptyResult);
+    }
+  });
+
+
   // 2. AI Review Issues & Concerns
   app.post('/api/gemini/review-issues', async (req, res) => {
     const { currentIssues, documents = [] } = req.body;

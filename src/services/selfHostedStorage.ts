@@ -11,6 +11,7 @@ import {
   CourtCriterion,
   ProposedParentingOrder,
   CaseSettings,
+  ParentResolutionRequest,
 } from '../types';
 
 export interface CaseDataStore {
@@ -25,6 +26,7 @@ export interface CaseDataStore {
   issuesConcerns: IssueConcern[];
   courtCriteria: CourtCriterion[];
   proposedOrders: ProposedParentingOrder[];
+  parentResolutions: ParentResolutionRequest[];
   settings?: CaseSettings;
 }
 

@@ -7,7 +7,6 @@ import {
   CheckSquare, 
   Mail, 
   Users, 
-  FileText, 
   MessageSquare, 
   HelpCircle, 
   BarChart3, 
@@ -15,11 +14,11 @@ import {
   UploadCloud,
   ShieldCheck,
   CalendarDays,
-  Cloud,
   ShieldAlert,
   FileCheck,
   Database,
-  FolderSync as FolderSyncIcon
+  FolderSync as FolderSyncIcon,
+  MessagesSquare
 } from 'lucide-react';
 import { CASE_METADATA } from '../data/caseData';
 
@@ -42,7 +41,8 @@ export type ActiveTab =
   | 'gaps'
   | 'analytics'
   | 'binder'
-  | 'documents';
+  | 'documents'
+  | 'parent-resolutions';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -57,6 +57,7 @@ interface NavbarProps {
   waitingResponseCount?: number;
   issuesCount?: number;
   tickedOrdersCount?: number;
+  openParentResolutionsCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -72,6 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   waitingResponseCount = 0,
   issuesCount = 0,
   tickedOrdersCount = 0,
+  openParentResolutionsCount = 0,
 }) => {
   const tabs = [
     { id: 'dashboard' as ActiveTab, label: 'Command Center', icon: LayoutDashboard },
@@ -86,11 +88,12 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'discrepancies' as ActiveTab, label: 'Discrepancy Engine', icon: AlertTriangle, badge: discrepancyCount, badgeColor: 'bg-rose-500' },
     { id: 'biff' as ActiveTab, label: 'BIFF Drafter', icon: Mail },
     { id: 'mediation' as ActiveTab, label: 'Mediation Red-Team', icon: Users },
-    { id: 'affidavit' as ActiveTab, label: 'Affidavit Drafter', icon: FileText },
+    // 'affidavit' and 'drive' tabs hidden from navigation per user request
+    // (2026-09-10) -- components/routes are left intact, just not linked here.
     { id: 'chat' as ActiveTab, label: 'Legal AI Chat', icon: MessageSquare },
-    { id: 'drive' as ActiveTab, label: 'Google Drive', icon: Cloud },
     { id: 'gaps' as ActiveTab, label: 'Knowledge Gaps', icon: HelpCircle, badge: gapCount, badgeColor: 'bg-blue-500' },
     { id: 'analytics' as ActiveTab, label: 'Comm Analytics', icon: BarChart3 },
+    { id: 'parent-resolutions' as ActiveTab, label: 'Parent Resolutions', icon: MessagesSquare, badge: openParentResolutionsCount, badgeColor: 'bg-amber-500' },
     { id: 'binder' as ActiveTab, label: 'Evidence Binder', icon: FolderArchive },
     { id: 'documents' as ActiveTab, label: 'Document Vault', icon: ShieldCheck },
   ];
