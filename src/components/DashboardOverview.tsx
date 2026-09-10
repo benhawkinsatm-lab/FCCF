@@ -14,9 +14,7 @@ import {
   ExternalLink,
   CalendarDays,
   ShieldAlert,
-  SlidersHorizontal,
-  Calendar,
-  Bell
+  SlidersHorizontal
 } from 'lucide-react';
 import { DocumentRecord, TimelineEvent, ParentingOrder, DiscrepancyItem, CourtCriterion } from '../types';
 import { ActiveTab } from './Navbar';

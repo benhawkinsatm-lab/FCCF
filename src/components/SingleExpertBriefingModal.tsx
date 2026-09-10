@@ -9,9 +9,29 @@ import {
   Users,
   HeartPulse,
   GraduationCap,
-  Scale
+  Scale,
+  Sparkles,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { DocumentRecord, TimelineEvent, CourtCriterion, ParentingOrder } from '../types';
+
+interface GeneratedChildBrief {
+  name: string;
+  emotionalPresentation: string;
+  extracurricularStability: string;
+  parentalAttachment: string;
+  medicalNote: string;
+  schoolExperience: string;
+  protectiveNeed: string;
+  citations: string[];
+}
+
+interface GeneratedBriefData {
+  children: GeneratedChildBrief[];
+  schoolAudit: { summary: string; fatherCarePoints: string[]; motherCarePoints: string[]; citations: string[] } | null;
+  hospitalAudit: { summary: string; citations: string[] } | null;
+}
 
 interface SingleExpertBriefingModalProps {
   isOpen: boolean;
@@ -34,6 +54,30 @@ export const SingleExpertBriefingModal: React.FC<SingleExpertBriefingModalProps>
 }) => {
   const [activeSection, setActiveSection] = useState<'brief' | 'children' | 'medical_school' | 'compliance'>('brief');
   const [copied, setCopied] = useState(false);
+  const [generatedBrief, setGeneratedBrief] = useState<GeneratedBriefData | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+
+  const handleGenerateBrief = async () => {
+    setIsGenerating(true);
+    setGenerationError(null);
+    try {
+      const res = await fetch('/api/gemini/generate-expert-brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documents, timeline }),
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data: GeneratedBriefData = await res.json();
+      setGeneratedBrief(data);
+    } catch (err) {
+      setGenerationError('AI generation failed. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const NA = 'No documents in the case record currently address this.';
 
   if (!isOpen) return null;
 
@@ -61,34 +105,34 @@ export const SingleExpertBriefingModal: React.FC<SingleExpertBriefingModalProps>
 ---
 
 ## 2. PROFILE OF THE CHILDREN & DEVELOPMENTAL STATUS
-
-### A. ISABELLA HAWKINS (Born 14 February 2014, Age 10)
-- **Schooling:** Bassendean Primary School (Year 5). Strong academic progress in literacy and mathematics.
-- **Welfare & Emotional State:** Demonstrates mature emotional awareness. Shows anxiety when parental handovers involve friction or when school attendance is disrupted.
-- **Extracurriculars:** Enrolled in junior swimming squad and weekend netball. Father consistently attends training sessions and meets all registration requirements.
-- **Father's Parenting Relationship:** Open, communicative, supportive of academic homework routine, establishes predictable bedtime routines.
-
-### B. MASON HAWKINS (Born 22 May 2015, Age 9)
-- **Schooling:** Bassendean Primary School (Year 4). Enjoys practical science, reading, and sports.
-- **Medical Profile - Chronic Asthma:** Mason suffers from chronic bronchial asthma requiring a strict GP Asthma Action Plan (Ventolin + daily preventer Seretide).
+${generatedBrief && generatedBrief.children.length > 0
+  ? generatedBrief.children.map(c => `### ${c.name.toUpperCase()}
+- **Emotional Presentation:** ${c.emotionalPresentation || NA}
+- **Extracurricular Stability:** ${c.extracurricularStability || NA}
+- **Parental Attachment:** ${c.parentalAttachment || NA}
+- **Medical Note:** ${c.medicalNote || NA}
+- **School Experience:** ${c.schoolExperience || NA}
+- **Protective Need:** ${c.protectiveNeed || NA}
+${c.citations?.length ? `- **Citations:** ${c.citations.join(', ')}` : ''}`).join('\n\n')
+  : 'Not yet generated. Use "Generate with AI" to synthesize these profiles from the documents currently in the case record.'}
 
 ---
 
 ## 3. COMPARATIVE PARENTAL CAPACITIES & THIRD-PARTY VERIFICATION
 
-### 3.1 Educational Support & School Attendance (Bassendean Primary School)
-- **Father's Care:** Zero unexcused absences. Zero late arrivals across 2023–2024 school years. Father actively communicates with class teachers and attends all parent-teacher conferences [Exhibit BJH-2].
-- **Mother's Care:** 5 unexcused absences and 7 recorded tardy arrivals in Semester 1, 2024.
+### 3.1 Educational Support & School Attendance
+${generatedBrief?.schoolAudit
+  ? `${generatedBrief.schoolAudit.summary || NA}
+- **Father's Care Periods:** ${(generatedBrief.schoolAudit.fatherCarePoints || []).join('; ') || NA}
+- **Mother's Care Periods:** ${(generatedBrief.schoolAudit.motherCarePoints || []).join('; ') || NA}
+${generatedBrief.schoolAudit.citations?.length ? `- **Citations:** ${generatedBrief.schoolAudit.citations.join(', ')}` : ''}`
+  : 'No school attendance audit generated yet, or no school-related documents are currently in the case record.'}
 
-### 3.2 Medical Diligence & Transparency
-- **Father:** Fully transparent, maintains duplicate prescription supplies, implements GP Asthma Action Plan, pays 50% shared specialist dental and physiotherapy accounts immediately upon receipt [Exhibit BJH-3].
-- **Mother:** History of non-disclosure regarding hospital emergency visits, 42-hour communication defaults regarding medical questions, and delays in administering prescribed preventative inhalers [Exhibit BJH-8].
-
-### 3.3 Communication Protocol Compliance (Order 9.1 - 42-Hour Rule)
-- Under Interim Order 9.1, non-emergency parenting communications must be responded to within 42 hours.
-- Objective audit of OurFamilyWizard and SMS communications reveals:
-  - **Father:** Average response latency of 4.2 hours (100% compliance rate).
-  - **Mother:** 14 documented contraventions exceeding 42 hours (average latency of 68.4 hours; maximum latency of 126 hours regarding dental consent).
+### 3.2 Hospital / Medical Emergency Records
+${generatedBrief?.hospitalAudit
+  ? `${generatedBrief.hospitalAudit.summary || NA}
+${generatedBrief.hospitalAudit.citations?.length ? `- **Citations:** ${generatedBrief.hospitalAudit.citations.join(', ')}` : ''}`
+  : 'No hospital/medical emergency audit generated yet, or no such documents are currently in the case record.'}
 
 ---
 
@@ -205,6 +249,24 @@ The Father proposes orders that:
 
           <div className="flex items-center gap-2">
             <button
+              onClick={handleGenerateBrief}
+              disabled={isGenerating}
+              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition"
+              id="generate-brief-ai-btn"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{generatedBrief ? 'Regenerate with AI' : 'Generate with AI'}</span>
+                </>
+              )}
+            </button>
+            <button
               onClick={handleCopy}
               className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 shadow-xs transition"
               id="copy-brief-btn"
@@ -289,7 +351,7 @@ The Father proposes orders that:
                   <li>The nature and strength of the relationship between Isabella and Mason and each of their parents.</li>
                   <li>The capacity of each parent to communicate constructively, facilitate the children's relationship with the other parent, and provide stability.</li>
                   <li>The practical and emotional impact upon the children of the current fortnightly arrangements versus the proposed orders.</li>
-                  <li>The protective and medical needs of Mason in light of his chronic asthma diagnosis and recent emergency hospital admission.</li>
+                  <li>The protective and medical needs of each child, based on the medical records currently in evidence.</li>
                   <li>The recommended dispute resolution and decision-making framework to prevent future parental conflict.</li>
                 </ol>
               </div>
@@ -336,61 +398,66 @@ The Father proposes orders that:
                 Detailed Developmental &amp; Welfare Profiles
               </h2>
 
-              {/* Isabella Card */}
-              <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
+              {generationError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{generationError}</span>
+                </div>
+              )}
+
+              {!generatedBrief && !isGenerating && (
+                <div className="flex flex-col items-center justify-center text-center py-16 px-6 bg-slate-50 border border-slate-200 rounded-xl">
+                  <Sparkles className="w-8 h-8 text-slate-300 mb-3" />
+                  <p className="text-xs text-slate-500 max-w-sm">
+                    These profiles have not been generated yet. Click &quot;Generate with AI&quot; above to synthesize them from the documents currently in the case record.
+                  </p>
+                </div>
+              )}
+
+              {isGenerating && (
+                <div className="flex items-center justify-center gap-2 py-16 text-slate-400 text-xs">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Generating from case documents...</span>
+                </div>
+              )}
+
+              {generatedBrief && generatedBrief.children.map((child) => (
+                <div key={child.name} className="border border-slate-200 rounded-xl p-5 bg-white shadow-xs space-y-3">
                   <div>
-                    <h3 className="text-base font-bold text-slate-900">Isabella Hawkins (Age 10)</h3>
-                    <p className="text-xs text-slate-500">Born 14 February 2014 &bull; Year 5 Student at Bassendean Primary School</p>
+                    <h3 className="text-base font-bold text-slate-900">{child.name}</h3>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    High Academic Performance
-                  </span>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-1">
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-                    <strong className="text-slate-900 block">Emotional Presentation:</strong>
-                    <p className="text-slate-600">Empathetic, mature for her age. Can exhibit stress and withdraw when conflict arises at physical handovers.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-1">
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                      <strong className="text-slate-900 block">Emotional Presentation:</strong>
+                      <p className="text-slate-600">{child.emotionalPresentation || NA}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                      <strong className="text-slate-900 block">Extracurricular Stability:</strong>
+                      <p className="text-slate-600">{child.extracurricularStability || NA}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                      <strong className="text-slate-900 block">Parental Attachment:</strong>
+                      <p className="text-slate-600">{child.parentalAttachment || NA}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                      <strong className="text-slate-900 block">Medical Note:</strong>
+                      <p className="text-slate-600">{child.medicalNote || NA}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                      <strong className="text-slate-900 block">School Experience:</strong>
+                      <p className="text-slate-600">{child.schoolExperience || NA}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                      <strong className="text-slate-900 block">Protective Need:</strong>
+                      <p className="text-slate-600">{child.protectiveNeed || NA}</p>
+                    </div>
                   </div>
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-                    <strong className="text-slate-900 block">Extracurricular Stability:</strong>
-                    <p className="text-slate-600">Junior squad swimmer &amp; netball. Father ensures 100% on-time attendance for Saturday morning matches.</p>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-                    <strong className="text-slate-900 block">Parental Attachment:</strong>
-                    <p className="text-slate-600">Close bond with both parents; relies on Father for structured routine, homework guidance, and quiet reading time.</p>
-                  </div>
+                  {child.citations?.length > 0 && (
+                    <p className="text-[10px] text-slate-400 font-mono">Citations: {child.citations.join(', ')}</p>
+                  )}
                 </div>
-              </div>
-
-              {/* Mason Card */}
-              <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">Mason Hawkins (Age 9)</h3>
-                    <p className="text-xs text-slate-500">Born 22 May 2015 &bull; Year 4 Student at Bassendean Primary School</p>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">
-                    Chronic Medical Vulnerability (Asthma)
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-1">
-                  <div className="p-3 bg-rose-50/60 rounded-lg border border-rose-200 space-y-1">
-                    <strong className="text-rose-950 block">Asthma Management:</strong>
-                    <p className="text-rose-900">Requires daily preventative corticosteroid and prompt administration of Ventolin during wheezing episodes.</p>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-                    <strong className="text-slate-900 block">School Experience:</strong>
-                    <p className="text-slate-600">Loves science and hands-on projects. Demonstrates eagerness to learn when attendance is uninterrupted.</p>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-                    <strong className="text-slate-900 block">Protective Need:</strong>
-                    <p className="text-slate-600">Strict requirement that both households maintain active Asthma Action Plans and disclose acute events promptly.</p>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           )}
 
@@ -400,50 +467,67 @@ The Father proposes orders that:
                 Third-Party Institutional Evidentiary Audit
               </h2>
 
-              {/* Bassendean PS Section */}
-              <div className="border border-slate-200 rounded-xl p-5 bg-white space-y-3">
-                <div className="flex items-center gap-2 text-slate-900 font-bold">
-                  <GraduationCap className="w-5 h-5 text-indigo-600" />
-                  <span>Primary School Attendance &amp; Welfare Records</span>
+              {!generatedBrief && !isGenerating && (
+                <div className="flex flex-col items-center justify-center text-center py-16 px-6 bg-slate-50 border border-slate-200 rounded-xl">
+                  <Sparkles className="w-8 h-8 text-slate-300 mb-3" />
+                  <p className="text-xs text-slate-500 max-w-sm">
+                    This audit has not been generated yet. Click &quot;Generate with AI&quot; above to synthesize it from the documents currently in the case record.
+                  </p>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Independent attendance roll data submitted by the school demonstrates a marked divergence in school attendance and punctuality depending on which parent holds physical care:
-                </p>
+              )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2">
-                  <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-lg space-y-1">
-                    <strong className="text-emerald-900 font-bold block">Father's Care Periods:</strong>
-                    <ul className="list-disc pl-4 space-y-0.5 text-emerald-950">
-                      <li><strong>0</strong> Unexcused Absences</li>
-                      <li><strong>0</strong> Tardy Arrivals</li>
-                      <li>100% homework submission and active involvement in school events.</li>
-                    </ul>
+              {isGenerating && (
+                <div className="flex items-center justify-center gap-2 py-16 text-slate-400 text-xs">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Generating from case documents...</span>
+                </div>
+              )}
+
+              {generatedBrief && generatedBrief.schoolAudit && (
+                <div className="border border-slate-200 rounded-xl p-5 bg-white space-y-3">
+                  <div className="flex items-center gap-2 text-slate-900 font-bold">
+                    <GraduationCap className="w-5 h-5 text-indigo-600" />
+                    <span>Primary School Attendance &amp; Welfare Records</span>
                   </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">{generatedBrief.schoolAudit.summary || NA}</p>
 
-                  <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-lg space-y-1">
-                    <strong className="text-rose-900 font-bold block">Mother's Care Periods:</strong>
-                    <ul className="list-disc pl-4 space-y-0.5 text-rose-950">
-                      <li><strong>5</strong> Unexcused Absences (Term 1 &amp; 2)</li>
-                      <li><strong>7</strong> Tardy Arrivals after 8:50 AM bell</li>
-                      <li>Unconfirmed illness claim contradicted by travel records.</li>
-                    </ul>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2">
+                    <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-lg space-y-1">
+                      <strong className="text-emerald-900 font-bold block">Father's Care Periods:</strong>
+                      <ul className="list-disc pl-4 space-y-0.5 text-emerald-950">
+                        {(generatedBrief.schoolAudit.fatherCarePoints || []).map((pt, idx) => <li key={idx}>{pt}</li>)}
+                        {(!generatedBrief.schoolAudit.fatherCarePoints || generatedBrief.schoolAudit.fatherCarePoints.length === 0) && <li>{NA}</li>}
+                      </ul>
+                    </div>
+
+                    <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-lg space-y-1">
+                      <strong className="text-rose-900 font-bold block">Mother's Care Periods:</strong>
+                      <ul className="list-disc pl-4 space-y-0.5 text-rose-950">
+                        {(generatedBrief.schoolAudit.motherCarePoints || []).map((pt, idx) => <li key={idx}>{pt}</li>)}
+                        {(!generatedBrief.schoolAudit.motherCarePoints || generatedBrief.schoolAudit.motherCarePoints.length === 0) && <li>{NA}</li>}
+                      </ul>
+                    </div>
                   </div>
+                  {generatedBrief.schoolAudit.citations?.length > 0 && (
+                    <p className="text-[10px] text-slate-400 font-mono">Citations: {generatedBrief.schoolAudit.citations.join(', ')}</p>
+                  )}
                 </div>
-              </div>
+              )}
 
-              {/* Hospital Section */}
-              <div className="border border-slate-200 rounded-xl p-5 bg-white space-y-3">
-                <div className="flex items-center gap-2 text-slate-900 font-bold">
-                  <HeartPulse className="w-5 h-5 text-rose-600" />
-                  <span>Hospital Emergency Admission Records</span>
+              {generatedBrief && generatedBrief.hospitalAudit && (
+                <div className="border border-slate-200 rounded-xl p-5 bg-white space-y-3">
+                  <div className="flex items-center gap-2 text-slate-900 font-bold">
+                    <HeartPulse className="w-5 h-5 text-rose-600" />
+                    <span>Hospital Emergency Admission Records</span>
+                  </div>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1 text-slate-700">
+                    <div>{generatedBrief.hospitalAudit.summary || NA}</div>
+                  </div>
+                  {generatedBrief.hospitalAudit.citations?.length > 0 && (
+                    <p className="text-[10px] text-slate-400 font-mono">Citations: {generatedBrief.hospitalAudit.citations.join(', ')}</p>
+                  )}
                 </div>
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1 text-slate-700">
-                  <div><strong>Date of Admission:</strong> 24 May 2024 at 18:30</div>
-                  <div><strong>Discharge Date:</strong> 25 May 2024 at 09:15</div>
-                  <div><strong>Diagnosis:</strong> Acute moderate asthma exacerbation, O2 saturation 91% on room air.</div>
-                  <div><strong>Order 7.3 Contravention:</strong> Mother did not notify Father until 28 hours post-discharge.</div>
-                </div>
-              </div>
+              )}
             </div>
           )}
 

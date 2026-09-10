@@ -1632,6 +1632,93 @@ Return a strict JSON object with:
     }
   });
 
+  // AI Generate Single Expert Witness / Family Consultant Briefing Pack content
+  app.post('/api/gemini/generate-expert-brief', async (req, res) => {
+    const { documents = [], timeline = [] } = req.body;
+    const ai = getAiClient();
+
+    const emptyResult = {
+      children: [],
+      schoolAudit: null,
+      hospitalAudit: null,
+      note: 'AI generation is unavailable right now. This briefing pack has no content to display until it can be generated from the documents in the case record.'
+    };
+
+    if (!ai) {
+      return res.json(emptyResult);
+    }
+
+    try {
+      const docSummary = documents.slice(0, 40).map((d: any) => `[${d.id}] (${d.category}, ${d.date}) ${d.title} -- Source: ${d.sourceOrigin} -- Excerpt: ${(d.excerpt || '').slice(0, 400)}`).join('\n');
+      const timelineSummary = timeline.slice(0, 40).map((e: any) => `[${e.id}] ${e.date} (${e.category}): ${e.title} -- ${e.description || ''}`).join('\n');
+
+      const prompt = `${CASE_CONTEXT_PROMPT}
+
+TASK: Draft the content for a Single Expert Witness / Family Consultant Briefing Pack, for the children Isabella Hawkins and Mason Hawkins.
+
+DOCUMENTS IN THE CASE RECORD:
+"""
+${docSummary || '(none ingested yet)'}
+"""
+
+TIMELINE EVENTS IN THE CASE RECORD:
+"""
+${timelineSummary || '(none recorded yet)'}
+"""
+
+STRICT RULES (zero-hallucination):
+- Every substantive claim must be derived from and cite a real document ID (e.g. [DOC-2024-002]) or timeline event ID from the material above.
+- Do NOT invent dates, diagnoses, incidents, statistics, or specifics that are not present in the supplied material.
+- If the supplied material does not address a field below for a given child or institution, set that field's value to the literal string "No documents in the case record currently address this." and leave its citations array empty. Do not fabricate content to fill a gap.
+
+Return strict JSON:
+{
+  "children": [
+    {
+      "name": "Isabella Hawkins" | "Mason Hawkins",
+      "emotionalPresentation": "string",
+      "extracurricularStability": "string",
+      "parentalAttachment": "string",
+      "medicalNote": "string",
+      "schoolExperience": "string",
+      "protectiveNeed": "string",
+      "citations": ["DOC-... or EVT-..."]
+    }
+  ],
+  "schoolAudit": {
+    "summary": "string",
+    "fatherCarePoints": ["string"],
+    "motherCarePoints": ["string"],
+    "citations": ["string"]
+  },
+  "hospitalAudit": {
+    "summary": "string",
+    "citations": ["string"]
+  }
+}
+If there are no school-related documents at all, set "schoolAudit" to null. If there are no hospital/medical-emergency documents at all, set "hospitalAudit" to null.
+`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        }
+      });
+
+      const parsed = JSON.parse(response.text?.trim() || '{}');
+      res.json({
+        children: Array.isArray(parsed.children) ? parsed.children : [],
+        schoolAudit: parsed.schoolAudit || null,
+        hospitalAudit: parsed.hospitalAudit || null,
+      });
+    } catch (err: any) {
+      console.warn('Gemini Expert Brief generation error:', err?.message || err);
+      res.json(emptyResult);
+    }
+  });
+
   // 2. AI Review Issues & Concerns
   app.post('/api/gemini/review-issues', async (req, res) => {
     const { currentIssues, documents = [] } = req.body;
