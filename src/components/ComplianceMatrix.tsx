@@ -34,9 +34,24 @@ export const ComplianceMatrix: React.FC<ComplianceMatrixProps> = ({
   const [isBreachReportModalOpen, setIsBreachReportModalOpen] = useState<boolean>(false);
 
   const activeOrder = orders.find(o => o.id === selectedOrder) || orders[0];
-  const linkedEvents = timeline.filter(e => e.orderBreachFlag && (e.breachedOrderNumber?.includes(activeOrder.orderNumber) || activeOrder.associatedEventIds.includes(e.id)));
 
-  const totalBreaches = orders.reduce((sum, o) => sum + o.breachesCount, 0);
+  const totalBreaches = orders.reduce((sum, o) => sum + (o.breachesCount || 0), 0);
+
+  if (!activeOrder) {
+    return (
+      <div className="space-y-6 pb-12" id="compliance-matrix-container">
+        <div className="flex flex-col items-center justify-center text-center py-20 px-6 bg-white border border-slate-200 rounded-xl">
+          <CheckSquare className="w-10 h-10 text-slate-300 mb-3" />
+          <h2 className="text-sm font-bold text-slate-900">No Operative Orders Recorded Yet</h2>
+          <p className="text-xs text-slate-500 mt-1 max-w-md">
+            Order compliance is tracked once parenting orders have been added to the case (via document ingestion or manual entry). There is nothing to display until then.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const linkedEvents = timeline.filter(e => e.orderBreachFlag && (e.breachedOrderNumber?.includes(activeOrder.orderNumber) || (activeOrder.associatedEventIds || []).includes(e.id)));
 
   return (
     <div className="space-y-6 pb-12" id="compliance-matrix-container">

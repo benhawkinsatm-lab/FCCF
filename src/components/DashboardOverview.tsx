@@ -49,10 +49,14 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const breaches = timeline.filter(e => e.orderBreachFlag);
   const severeBreaches = breaches.filter(e => e.breachSeverity === 'Severe');
   const mandate42hBreaches = timeline.filter(e => e.responseLagHours && e.responseLagHours > 42);
+  const maxResponseLagHours = mandate42hBreaches.reduce((max, e) => Math.max(max, e.responseLagHours || 0), 0);
+  const verifiedDocumentPct = documents.length
+    ? Math.round((documents.filter(d => d.evidentiaryWeight !== 'Unverified Claim').length / documents.length) * 100)
+    : 0;
 
   // Overall compliance rate
   const avgCompliance = Math.round(
-    orders.reduce((acc, o) => acc + o.complianceRate, 0) / (orders.length || 1)
+    orders.reduce((acc, o) => acc + (o.complianceRate || 0), 0) / (orders.length || 1)
   );
 
   const handleQuickSearch = (e: React.FormEvent) => {
@@ -111,7 +115,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-slate-900">{documents.length}</span>
-            <span className="text-[11px] text-emerald-600 font-medium">100% Verified</span>
+            <span className="text-[11px] text-emerald-600 font-medium">{verifiedDocumentPct}% Verified</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Indexed as Annexures BJH</p>
         </div>
@@ -147,7 +151,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <span className="text-2xl font-bold text-slate-900">{avgCompliance}%</span>
             <span className="text-[11px] text-amber-600 font-medium">Respondent Rate</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">Across 7 active orders</p>
+          <p className="text-[11px] text-slate-400 mt-1">Across {orders.length} active order{orders.length === 1 ? '' : 's'}</p>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -157,7 +161,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-indigo-900">{mandate42hBreaches.length}</span>
-            <span className="text-[11px] text-indigo-600 font-medium">Max 126h lag</span>
+            <span className="text-[11px] text-indigo-600 font-medium">Max {maxResponseLagHours}h lag</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Order 9.1 communications</p>
         </div>
@@ -172,169 +176,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <span className="text-[11px] text-amber-600 font-medium">Impeachable</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Cross-examined facts</p>
-        </div>
-      </div>
-
-      {/* Court Event & Deadline Countdown Calendar */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-5 text-white border border-slate-700 shadow-md space-y-4" id="court-countdown-calendar-widget">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold tracking-tight text-white font-serif">
-                  Court Event &amp; Statutory Deadline Calendar
-                </h2>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-900/60 text-indigo-300 border border-indigo-700">
-                  Perth Registry &bull; File 4344/2023
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
-                Live procedural countdown tracking 42-hour response mandates, court filing dates, and single expert evaluations.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsExpertModalOpen(true)}
-              className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-xs transition"
-              id="calendar-open-expert-btn"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Open Single Expert Brief</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('responses')}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-xs font-semibold flex items-center gap-1.5 transition"
-              id="calendar-open-responses-btn"
-            >
-              <Clock className="w-3.5 h-3.5 text-rose-400" />
-              <span>42h Response Tracker</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 4 Countdown Milestone Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-          {/* Milestone 1: 42h Mandate */}
-          <div 
-            onClick={() => setActiveTab('responses')}
-            className="p-3.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-rose-500/40 hover:border-rose-400 cursor-pointer transition-all space-y-2 group relative overflow-hidden"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1">
-                <Bell className="w-3 h-3 text-rose-400 animate-pulse" />
-                <span>Statutory Mandate</span>
-              </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-950 text-rose-200 border border-rose-800">
-                Order 9.1
-              </span>
-            </div>
-            <div>
-              <h3 className="text-xs font-bold text-slate-100 group-hover:text-rose-200 transition-colors">
-                42h Medical Response Notice
-              </h3>
-              <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">
-                Mason's Midland Hospital discharge summary &amp; asthma action plan reply.
-              </p>
-            </div>
-            <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-xs">
-              <span className="text-rose-400 font-bold font-mono">68h Overdue</span>
-              <span className="text-[11px] text-slate-400 group-hover:text-white flex items-center gap-0.5">
-                Resolve <ArrowRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
-
-          {/* Milestone 2: Affidavit Filing */}
-          <div 
-            onClick={() => setActiveTab('affidavit')}
-            className="p-3.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-amber-400 cursor-pointer transition-all space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
-                Registry Deadline
-              </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-950 text-amber-200 border border-amber-800">
-                Form 2
-              </span>
-            </div>
-            <div>
-              <h3 className="text-xs font-bold text-slate-100 group-hover:text-amber-200 transition-colors">
-                Affidavit Evidence Filing
-              </h3>
-              <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">
-                Sworn contravention particulars &amp; BJH-1 to BJH-11 exhibit bundle.
-              </p>
-            </div>
-            <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-xs">
-              <span className="text-amber-300 font-bold font-mono">14 Days Due</span>
-              <span className="text-[11px] text-slate-400 group-hover:text-white flex items-center gap-0.5">
-                Draft <ArrowRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
-
-          {/* Milestone 3: Single Expert Witness */}
-          <div 
-            onClick={() => setIsExpertModalOpen(true)}
-            className="p-3.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-indigo-400 cursor-pointer transition-all space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
-                Court Expert
-              </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-950 text-indigo-200 border border-indigo-800">
-                Joint Brief
-              </span>
-            </div>
-            <div>
-              <h3 className="text-xs font-bold text-slate-100 group-hover:text-indigo-200 transition-colors">
-                Family Consultant Assessment
-              </h3>
-              <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">
-                Joint assessment of Isabella and Mason with court-appointed expert.
-              </p>
-            </div>
-            <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-xs">
-              <span className="text-indigo-300 font-bold font-mono">28 Days Due</span>
-              <span className="text-[11px] text-slate-400 group-hover:text-white flex items-center gap-0.5">
-                View Brief <ArrowRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
-
-          {/* Milestone 4: Readiness Mention */}
-          <div 
-            onClick={() => setActiveTab('compliance')}
-            className="p-3.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-emerald-400 cursor-pointer transition-all space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-                Court Appearance
-              </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-200 border border-emerald-800">
-                Court 4.2
-              </span>
-            </div>
-            <div>
-              <h3 className="text-xs font-bold text-slate-100 group-hover:text-emerald-200 transition-colors">
-                Pre-Trial Readiness Mention
-              </h3>
-              <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">
-                Family Court of WA callover before Senior Judicial Registrar.
-              </p>
-            </div>
-            <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-xs">
-              <span className="text-emerald-300 font-bold font-mono">45 Days Due</span>
-              <span className="text-[11px] text-slate-400 group-hover:text-white flex items-center gap-0.5">
-                Compliance <ArrowRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -664,7 +505,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 <span className="text-[11px] text-slate-500 font-mono">b. 21 July 2014 (Age 10)</span>
               </div>
               <p className="text-slate-600 text-[11px]">
-                Year 5 at Bassendean PS. Enrolled in speech therapy (Midland Paediatric Clinic) &amp; orthodontic review.
+                Year 5 at Bassendean PS.
               </p>
             </div>
 
