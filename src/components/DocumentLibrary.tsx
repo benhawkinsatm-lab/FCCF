@@ -9,9 +9,11 @@ import {
   Tag, 
   Clock, 
   FolderArchive, 
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import { DocumentRecord, DocumentCategory } from '../types';
+import { reingestDocuments } from '../utils/documentReingest';
 import { METADATA_CATEGORIES } from './DocumentIngestionModal';
 import { EvidenceBinderSubsetModal } from './EvidenceBinderSubsetModal';
 import { 
@@ -87,6 +89,8 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [bulkTagInput, setBulkTagInput] = useState('');
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+  const [isReingesting, setIsReingesting] = useState(false);
+  const [reingestProgress, setReingestProgress] = useState<{ completed: number; total: number } | null>(null);
 
   // Subset Modal State
   const [isSubsetModalOpen, setIsSubsetModalOpen] = useState(false);
@@ -117,6 +121,36 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
   }, [feedbackMsg]);
 
   // Reset page to 1 when filters or sorting change
+  const handleBulkReingest = async () => {
+    if (!onUpdateDocuments) return;
+    const docsToReingest = documents.filter(d => selectedDocIds.has(d.id));
+    if (docsToReingest.length === 0) return;
+
+    setIsReingesting(true);
+    setReingestProgress({ completed: 0, total: docsToReingest.length });
+    try {
+      const { updated, failures } = await reingestDocuments(docsToReingest, (completed, total) => {
+        setReingestProgress({ completed, total });
+      });
+
+      if (updated.length > 0) {
+        const updatedById = new Map(updated.map(d => [d.id, d]));
+        onUpdateDocuments(documents.map(d => updatedById.get(d.id) || d));
+      }
+
+      const skippedNoFile = failures.filter(f => f.error.includes('No original file')).length;
+      const otherFailures = failures.length - skippedNoFile;
+      const parts = [`${updated.length} re-processed`];
+      if (skippedNoFile > 0) parts.push(`${skippedNoFile} skipped (no original file stored)`);
+      if (otherFailures > 0) parts.push(`${otherFailures} failed`);
+      setFeedbackMsg(parts.join(', ') + '.');
+      setSelectedDocIds(new Set());
+    } finally {
+      setIsReingesting(false);
+      setReingestProgress(null);
+    }
+  };
+
   const handleFilterChange = (newFilters: Partial<DocumentFilterState>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
     setCurrentPage(1);
@@ -857,8 +891,28 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                 <span>Generate Evidence Binder Subset ({selectedDocIds.size})</span>
               </button>
 
+              {/* Bulk Re-process AI Ingestion Action */}
+              {onUpdateDocuments && (
+                <button
+                  type="button"
+                  onClick={handleBulkReingest}
+                  disabled={isReingesting}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  id="action-bar-reingest-btn"
+                  title="Re-run AI ingestion against the stored original files of the selected documents"
+                >
+                  <RefreshCw className={'w-3.5 h-3.5' + (isReingesting ? ' animate-spin' : '')} />
+                  <span>
+                    {isReingesting && reingestProgress
+                      ? 'Re-processing ' + reingestProgress.completed + '/' + reingestProgress.total + '...'
+                      : 'Re-run AI Ingestion (' + selectedDocIds.size + ')'}
+                  </span>
+                </button>
+              )}
+
               {/* Bulk Delete Action */}
               {(onDeleteDocuments || onDeleteDocument) && (
+
                 <button
                   type="button"
                   onClick={() => {

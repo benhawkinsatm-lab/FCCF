@@ -1,18 +1,35 @@
 import React from 'react';
-import { X, ShieldCheck, Scale, Copy, Check, Tag, Trash2, FileSearch } from 'lucide-react';
+import { X, ShieldCheck, Scale, Copy, Check, Tag, Trash2, FileSearch, RefreshCw, AlertTriangle } from 'lucide-react';
 import { DocumentRecord } from '../types';
 import { openOriginalFile } from '../utils/originalFileStorage';
+import { reingestDocument } from '../utils/documentReingest';
 
 interface DocumentDetailModalProps {
   document: DocumentRecord | null;
   onClose: () => void;
   onDelete?: (doc: DocumentRecord) => void;
+  onReingest?: (updatedDoc: DocumentRecord) => void;
 }
 
-export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({ document, onClose, onDelete }) => {
+export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({ document, onClose, onDelete, onReingest }) => {
   const [copied, setCopied] = React.useState(false);
+  const [isReingesting, setIsReingesting] = React.useState(false);
+  const [reingestError, setReingestError] = React.useState<string | null>(null);
 
   if (!document) return null;
+
+  const handleReingest = async () => {
+    setIsReingesting(true);
+    setReingestError(null);
+    try {
+      const updated = await reingestDocument(document);
+      onReingest?.(updated);
+    } catch (err: any) {
+      setReingestError(err?.message || 'Re-processing failed.');
+    } finally {
+      setIsReingesting(false);
+    }
+  };
 
   const handleCopyCitation = () => {
     const citation = `[${document.id}] ${document.title} (${document.sourceOrigin}, ${document.date})`;
@@ -132,6 +149,13 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({ docume
           </div>
         </div>
 
+        {reingestError && (
+          <div className="mx-4 mb-2 p-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <span>{reingestError}</span>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="p-4 border-t border-slate-200 bg-white flex items-center justify-between">
           <div className="flex items-center gap-1 text-xs text-slate-500">
@@ -149,6 +173,19 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({ docume
               >
                 <FileSearch className="w-3.5 h-3.5 text-slate-600" />
                 <span>Open Original File</span>
+              </button>
+            )}
+            {onReingest && document.originalFileRef && (
+              <button
+                type="button"
+                onClick={handleReingest}
+                disabled={isReingesting}
+                className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                id="modal-reingest-btn"
+                title="Re-run AI ingestion against the stored original file"
+              >
+                <RefreshCw className={`w-3.5 h-3.5${isReingesting ? ' animate-spin' : ''}`} />
+                <span>{isReingesting ? 'Re-processing...' : 'Re-run AI Ingestion'}</span>
               </button>
             )}
             {onDelete && (

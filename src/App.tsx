@@ -879,6 +879,10 @@ export default function App() {
             document={selectedDocument}
             onClose={() => setSelectedDocument(null)}
             onDelete={(doc) => handleRequestDeleteDocuments([doc])}
+            onReingest={(updatedDoc) => {
+              setDocuments(prev => prev.map(d => (d.id === updatedDoc.id ? updatedDoc : d)));
+              setSelectedDocument(updatedDoc);
+            }}
           />
         )}
 

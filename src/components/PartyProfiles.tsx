@@ -12,6 +12,7 @@ import {
   FileText, 
   ExternalLink,
   RefreshCw,
+  Download,
   Quote,
   Brain,
   ChevronRight,
@@ -35,6 +36,7 @@ import {
   CHILD_CATEGORY_STYLES,
 } from '../utils/childTimelineService';
 import { summariseProductivityForParty } from '../utils/communicationProductivity';
+import { generatePartyProfilePdf } from '../utils/partyProfilePdfExport';
 
 /**
  * Renders one themed block of a child's welfare record. Empty lists are shown
@@ -135,6 +137,17 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
       ? summariseProductivityForParty(communicationMessages, activeProfile.partyName)
       : null;
   const productivityPattern = activeProfile?.communicationProductivityPattern || liveProductivity;
+
+  const handleExportPdf = () => {
+    if (!activeProfile) return;
+    try {
+      const doc = generatePartyProfilePdf(activeProfile);
+      const safeName = activeProfile.partyName.replace(/[^a-zA-Z0-9]/g, '_');
+      doc.save(`Party_Profile_${safeName}.pdf`);
+    } catch (err) {
+      console.error('Party profile PDF export failed:', err);
+    }
+  };
 
   const handleRunAiReview = async () => {
     setIsAiReviewing(true);
@@ -285,6 +298,15 @@ export const PartyProfiles: React.FC<PartyProfilesProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportPdf}
+              disabled={!activeProfile}
+              className="px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 shadow-xs transition-all bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              id="export-profile-pdf-btn"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export PDF</span>
+            </button>
             <button
               onClick={handleRunAiReview}
               disabled={isAiReviewing}
