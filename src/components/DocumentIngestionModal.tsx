@@ -43,7 +43,7 @@ import {
   CommunicationProductivity,
   NonProductiveMarker,
 } from '../types';
-import { performOcr, isImageFile, generateSampleCourtDocumentFile, OcrResult, OcrProgress } from '../services/ocrService';
+import { performOcr, isImageFile, isUnextractableBinaryFile, generateSampleCourtDocumentFile, OcrResult, OcrProgress } from '../services/ocrService';
 import { classifyProductivity, detectChildrenReferenced } from '../utils/communicationProductivity';
 import { inferChildCategory } from '../utils/childTimelineService';
 import { storeOriginalFile } from '../utils/originalFileStorage';
@@ -279,6 +279,24 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
         autoParseFile(file.name, file.type, base64, '');
       };
       reader.readAsDataURL(file);
+    } else if (isUnextractableBinaryFile(file)) {
+      // Archives, Office Open XML (.docx/.xlsx/.pptx are ZIP containers),
+      // legacy binary Office formats, and media files are not valid UTF-8
+      // text -- reading them with FileReader.readAsText() silently produces
+      // unparsed binary/compressed fragments (or raw NUL bytes) rather than
+      // real content, which then gets stored and presented as if it were the
+      // document's text. Preserve the original file only; never fabricate
+      // text content for it.
+      setImagePreviewUrl(null);
+      setOcrResult(null);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = (event.target?.result as string) || '';
+        const base64 = dataUrl.split(',')[1] || '';
+        setRawText('');
+        autoParseFile(file.name, file.type || 'application/octet-stream', base64, '');
+      };
+      reader.readAsDataURL(file);
     } else {
       setImagePreviewUrl(null);
       setOcrResult(null);
@@ -354,43 +372,54 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
   const autoParseFile = async (nameHint: string, mime: string, base64Data: string, textPayload: string) => {
     setIsParsing(true);
     try {
+      const isBinary = isUnextractableBinaryFile({ type: mime, name: nameHint });
       const safeText = textPayload && textPayload.length > 200000 
         ? textPayload.slice(0, 180000) + '\n\n[... Text truncated for legal parsing ...]'
         : textPayload;
 
-      let res = await fetch('/api/gemini/ocr-parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rawText: safeText || '',
-          textContent: safeText || '',
-          fileName: nameHint || 'Ingested_Document',
-          fileData: base64Data || '',
-          mimeType: mime || 'text/plain',
-        }),
-      });
-
-      // Auto-retry without heavy base64 file data if 413 encountered
-      if (res.status === 413) {
-        console.warn('OCR parse received 413, retrying with text metadata only');
-        res = await fetch('/api/gemini/ocr-parse', {
+      // Archives, Office Open XML, legacy Office binaries, and media files
+      // have no legible text content -- never send their raw bytes (or the
+      // already-empty textPayload) to the AI parser as if they were document
+      // content. There is nothing to extract, and doing so risks the parser
+      // fabricating a classification from noise. Fall back on the filename
+      // alone by leaving data empty; every downstream field below has a
+      // safe default for that case.
+      let data: any = {};
+      if (!isBinary) {
+        let res = await fetch('/api/gemini/ocr-parse', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            rawText: (safeText || '').slice(0, 40000),
-            textContent: (safeText || '').slice(0, 40000),
+            rawText: safeText || '',
+            textContent: safeText || '',
             fileName: nameHint || 'Ingested_Document',
-            fileData: '', // omit large binary base64
+            fileData: base64Data || '',
             mimeType: mime || 'text/plain',
           }),
         });
-      }
 
-      if (!res.ok) {
-        throw new Error(`AI parser returned status ${res.status}`);
-      }
+        // Auto-retry without heavy base64 file data if 413 encountered
+        if (res.status === 413) {
+          console.warn('OCR parse received 413, retrying with text metadata only');
+          res = await fetch('/api/gemini/ocr-parse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              rawText: (safeText || '').slice(0, 40000),
+              textContent: (safeText || '').slice(0, 40000),
+              fileName: nameHint || 'Ingested_Document',
+              fileData: '', // omit large binary base64
+              mimeType: mime || 'text/plain',
+            }),
+          });
+        }
 
-      const data = await res.json();
+        if (!res.ok) {
+          throw new Error(`AI parser returned status ${res.status}`);
+        }
+
+        data = await res.json();
+      }
       const detectedCategory = (data.documentCategory as DocumentCategory) || 'Direct Communication';
       
       const initialTags: string[] = Array.isArray(data.tags) && data.tags.length > 0
@@ -411,8 +440,12 @@ export const DocumentIngestionModal: React.FC<DocumentIngestionModalProps> = ({
         category: detectedCategory,
         sourceOrigin: data.sourceOrigin || nameHint || 'Direct Ingestion',
         evidentiaryWeight: data.evidentiaryWeight || 'Third-Party Objective',
-        excerpt: data.summaryExcerpt || (textPayload.slice(0, 200) + '...'),
-        extractedFullText: data.extractedFullText || textPayload,
+        excerpt: isBinary
+          ? `Binary/compressed file (${mime || 'unknown type'}) -- no text content could be extracted. Original file preserved for manual review.`
+          : (data.summaryExcerpt || (textPayload.slice(0, 200) + '...')),
+        extractedFullText: isBinary
+          ? `Binary/compressed file (${mime || 'unknown type'}) -- no text content could be extracted. Original file preserved for manual review.`
+          : (data.extractedFullText || textPayload),
         tags: initialTags,
         requiresResponse,
         responseFormat: detectedFormat,

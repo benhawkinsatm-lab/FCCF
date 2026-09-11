@@ -10,7 +10,7 @@ import {
   CommunicationProductivity,
   NonProductiveMarker,
 } from '../types';
-import { performOcr, isImageFile, OcrResult } from '../services/ocrService';
+import { performOcr, isImageFile, isUnextractableBinaryFile, OcrResult } from '../services/ocrService';
 import { classifyProductivity, detectChildrenReferenced } from './communicationProductivity';
 import { inferChildCategory } from './childTimelineService';
 import { storeOriginalFile } from './originalFileStorage';
@@ -57,6 +57,17 @@ async function readFileForIngestion(file: File): Promise<{ base64: string; textP
   }
 
   if (file.type === 'application/pdf') {
+    const base64 = await fileToBase64(file);
+    return { base64, textPayload: '', ocrResult: null };
+  }
+
+  if (isUnextractableBinaryFile(file)) {
+    // Archives, Office Open XML (.docx/.xlsx/.pptx are ZIP containers), legacy
+    // binary Office formats, and media files are not valid UTF-8 text --
+    // decoding them with file.text() produces unparsed binary/compressed
+    // fragments (or raw NUL bytes) that then poison storage and get
+    // presented as if they were the document's real content. Preserve the
+    // original file only; never fabricate text content for it.
     const base64 = await fileToBase64(file);
     return { base64, textPayload: '', ocrResult: null };
   }
@@ -181,7 +192,12 @@ async function parseDocumentMetadata(nameHint: string, mime: string, base64Data:
  */
 export async function ingestFileEndToEnd(file: File, docSequenceNumber: number): Promise<IngestedFileResult> {
   const { base64, textPayload, ocrResult } = await readFileForIngestion(file);
-  const parsedMetadata = await parseDocumentMetadata(file.name, file.type || 'application/octet-stream', base64, textPayload);
+  const isUnsupportedBinary = isUnextractableBinaryFile(file);
+  // Never send an unsupported binary file's raw bytes (or its already-empty
+  // textPayload) to the AI parser as if they were document content -- there
+  // is nothing legible to extract, and doing so risks the parser fabricating
+  // a classification from noise. Let it fall back on the filename alone.
+  const parsedMetadata = await parseDocumentMetadata(file.name, file.type || 'application/octet-stream', isUnsupportedBinary ? '' : base64, textPayload);
 
   const docYear = (parsedMetadata.date && /^\d{4}/.test(parsedMetadata.date))
     ? parsedMetadata.date.slice(0, 4)
@@ -204,8 +220,12 @@ export async function ingestFileEndToEnd(file: File, docSequenceNumber: number):
       : parsedMetadata.category === 'Direct Communication' ? inferCommsFileType(textPayload || parsedMetadata.excerpt || '', parsedMetadata.sourceOrigin || '')
       : 'pdf',
     fileSize: ocrResult ? `${(Math.max(12, Math.round((textPayload.length * 0.8) / 100)) / 10).toFixed(1)} KB (OCR)` : `${(Math.max(1, Math.round(file.size / 1024)) / 1024).toFixed(2)} MB`,
-    excerpt: parsedMetadata.excerpt || 'Verified evidence record.',
-    fullText: textPayload || parsedMetadata.excerpt || 'Verified document content.',
+    excerpt: isUnsupportedBinary
+      ? `Binary/compressed file (${file.type || 'unknown type'}) -- no text content could be extracted. Original file preserved for manual review.`
+      : (parsedMetadata.excerpt || 'Verified evidence record.'),
+    fullText: isUnsupportedBinary
+      ? `Binary/compressed file (${file.type || 'unknown type'}) -- no text content could be extracted. Original file preserved for manual review.`
+      : (textPayload || parsedMetadata.excerpt || 'Verified document content.'),
     tags: parsedMetadata.tags,
     metadata: {
       tags: parsedMetadata.tags,
@@ -218,6 +238,8 @@ export async function ingestFileEndToEnd(file: File, docSequenceNumber: number):
       ocrLineCount: ocrResult ? ocrResult.lineCount : undefined,
       ocrDurationMs: ocrResult ? ocrResult.durationMs : undefined,
       isOcrProcessed: Boolean(ocrResult),
+      unsupportedBinaryFile: isUnsupportedBinary || undefined,
+      originalMimeType: isUnsupportedBinary ? (file.type || 'application/octet-stream') : undefined,
     },
   };
 

@@ -101,6 +101,48 @@ export function isImageFile(file: File | { type?: string; name?: string }): bool
 }
 
 /**
+ * Extensions and MIME types for files whose bytes are binary/compressed and
+ * must never be decoded as UTF-8 text. This includes plain archives (.zip,
+ * .7z, .rar, .gz, .tar) as well as Office Open XML documents (.docx/.xlsx/
+ * .pptx are themselves ZIP containers under the hood), legacy binary Office
+ * formats, and common media containers. Calling File#text() /
+ * FileReader.readAsText() on one of these does not fail -- it silently
+ * returns unparsed binary/compressed fragments (mojibake, or raw NUL bytes)
+ * that look superficially like text, so callers must check this BEFORE
+ * choosing a text-decode path, not after seeing garbled output.
+ */
+const UNEXTRACTABLE_BINARY_EXTENSIONS = /\.(zip|7z|rar|gz|tgz|tar|docx?|xlsx?|pptx?|odt|ods|odp|exe|dmg|iso|mp3|mp4|wav|avi|mov|mkv)$/i;
+const UNEXTRACTABLE_BINARY_MIME_TYPES = new Set([
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-7z-compressed',
+  'application/x-rar-compressed',
+  'application/gzip',
+  'application/x-tar',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/msword',
+  'application/vnd.ms-excel',
+  'application/vnd.ms-powerpoint',
+]);
+
+/**
+ * True for a file whose content is binary/compressed and cannot be safely
+ * decoded as UTF-8 text. Callers must not pass such a file through
+ * file.text()/FileReader.readAsText(), and should not feed its raw bytes
+ * to a text/document AI parser either -- the correct handling is to
+ * preserve the original file and record honestly that no text content
+ * could be extracted, per the zero-hallucination requirement.
+ */
+export function isUnextractableBinaryFile(file: File | { type?: string; name?: string }): boolean {
+  const type = (file.type || '').toLowerCase();
+  if (UNEXTRACTABLE_BINARY_MIME_TYPES.has(type)) return true;
+  const name = (file.name || '').toLowerCase();
+  return UNEXTRACTABLE_BINARY_EXTENSIONS.test(name);
+}
+
+/**
  * Generates an authentic sample court document image on an HTML5 canvas
  * and returns it as a PNG File for immediate one-click testing of OCR in the browser.
  */
